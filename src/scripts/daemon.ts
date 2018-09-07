@@ -41,6 +41,7 @@ const startWeakenScript = async (ns: NS, server: Server) => {
     return;
   }
 
+  await ns.nuke(weakenServer);
   await ns.exec(weakenScript, getHostname(server), runThreads, weakenServer);
 };
 
@@ -54,16 +55,20 @@ export const main = async (ns: NS) => {
 
   const server = new Server(ns, daemonHost);
 
-  // buy a single hacknet node (required for hacknet script to work).
-  if (ns.hacknet.numNodes() === 0) {
-    ns.hacknet.purchaseNode();
+  if (await ns.prompt(`Enable hacknet manager?`)) {
+    // buy a single hacknet node (required for hacknet script to work).
+    if (ns.hacknet.numNodes() === 0) {
+      ns.hacknet.purchaseNode();
+    }
+
+    // start hacknet script
+    await ns.exec('hacknet.js', 'home');
   }
 
-  // start hacknet script
-  await ns.exec('hacknet.js', 'home');
-
-  // start stock-broker
-  await ns.exec('stock-broker.js', 'home', 1, ...stocks);
+  if (await ns.prompt(`Enable stock broker`)) {
+    // start stock-broker
+    await ns.exec('stock-broker.js', 'home', 1, ...stocks);
+  }
 
   // start weakening for level
   await startWeakenScript(ns, server);

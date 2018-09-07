@@ -1,0 +1,11 @@
+language: node_js
+script: yarn run build
+deploy:
+  provider: pages
+  skip-cleanup: true
+  github-token: $GITHUB_TOKEN
+  keep-history: true
+  local-dir: dist
+  target-branch: dist
+  on:
+    branch: master
