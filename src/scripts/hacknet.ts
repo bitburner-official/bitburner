@@ -124,6 +124,9 @@ export const main = async (ns: NS) => {
         throw new Error(`Invalid action type: ${(action as any).type}`);
     }
 
+    // Safety messure
+    await ns.sleep(200);
+
     prevHighestPrice = Math.max(prevHighestPrice, action.price);
   }
 };
