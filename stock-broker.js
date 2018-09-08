@@ -1,3 +1,83 @@
+const getPlayerMoney = (ns) => ns.getServerMoneyAvailable('home');
+
+const LEDGER_FILE = 'ledger.json';
+const _ns = Symbol('ns');
+const _name = Symbol('investor:name');
+const _conf = Symbol('investor:conf');
+class Investor {
+    constructor(ns, name, budget /* percentage (0,100] */) {
+        const host = ns.getHostname();
+        if (host !== 'home') {
+            throw new Error(`Investor instances can only run on the home server.`);
+        }
+        this[_ns] = ns;
+        this[_name] = name;
+        this[_conf] = { budget };
+        Object.freeze(this);
+    }
+}
+const incr = (n, m) => typeof n === 'undefined' ? m : n + m;
+const readLedger = (investor) => {
+    const text = investor[_ns].read(LEDGER_FILE);
+    if (text.trim().length === 0) {
+        return {};
+    }
+    return JSON.parse(text);
+};
+const getInvestments = (investor) => readLedger(investor)[investor[_name]] || {
+    totalInvested: 0,
+    investments: {},
+};
+const updateLedger = (investor, investments) => {
+    const ledger = readLedger(investor);
+    ledger[investor[_name]] = investments;
+    investor[_ns].write(LEDGER_FILE, JSON.stringify(ledger, null, 2), 'w');
+};
+const getBudget = (investor, name = null) => {
+    const investments = getInvestments(investor);
+    const money = getPlayerMoney(investor[_ns]);
+    const { budget } = investor[_conf];
+    const allowedUse = Math.floor((money * budget) / 100);
+    const totalInvested = Math.floor(investments.totalInvested);
+    const moneyLeft = Math.floor(allowedUse - totalInvested);
+    return {
+        totalMoney: money,
+        allowedPercentag: budget,
+        invested: name === null
+            ? totalInvested
+            : Math.floor(investments.investments[name] || 0),
+        allowedUse,
+        moneyLeft,
+    };
+};
+const getInvestment = (investor, name) => getInvestments(investor).investments[name] || 0;
+const tryInvest = (investor, name, price, action) => {
+    const investments = getInvestments(investor);
+    const money = getPlayerMoney(investor[_ns]);
+    const { budget } = investor[_conf];
+    const totalAllowedUse = (money * budget) / 100;
+    const allowedUse = totalAllowedUse - investments.totalInvested;
+    if (allowedUse < price)
+        return false;
+    const used = action(investor[_ns]);
+    if (used <= 0)
+        return;
+    investments.totalInvested += used;
+    investments.investments[name] = incr(investments.investments[name], used);
+    updateLedger(investor, investments);
+    return true;
+};
+const releaseInvestment = (investor, name) => {
+    const investments = getInvestments(investor);
+    const currentInvestment = investments.investments[name];
+    if (typeof currentInvestment === 'undefined') {
+        return;
+    }
+    investments.totalInvested -= currentInvestment;
+    delete investments.investments[name];
+    updateLedger(investor, investments);
+};
+
 const arg = (v) => {
     if (typeof v === 'undefined')
         return '<undefined>';
@@ -20,27 +100,19 @@ const prettifyString = (literals, ...placeholders) => {
 const maybeStr = (prefix) => typeof prefix === 'string' ? prefix : '';
 const createLogger = (ns, prefix) => (literals, ...placeholders) => ns.print(maybeStr(prefix) + prettifyString(literals, ...placeholders));
 
-const getPlayerMoney = (ns) => ns.getServerMoneyAvailable('home');
-
+const TRANSACTION_COST = 100000;
 const stocks = {};
-const getBuyValue = (ns, symbols) => {
-    let positions = 0;
-    // how many of the stocks do we currently have a position open?
-    for (const sym of symbols) {
-        const pos = ns.getStockPosition(sym);
-        if (pos[0] + pos[2] !== 0) {
-            positions++;
-        }
-    }
-    // allow opening of a position using of a proportion of available cash
-    // depending on number of already open positions
-    const buyValue = getPlayerMoney(ns) / (symbols.length + 1 - positions);
-    return buyValue - 100000;
+const invest = (investor, sym, totalSymbols, buy) => {
+    const budget = getBudget(investor, sym);
+    const maxInvestment = Math.floor(budget.allowedUse / totalSymbols);
+    const left = maxInvestment - budget.invested;
+    tryInvest(investor, sym, left, () => buy(left));
 };
-const run = (ns, sym, symbols, iter) => {
+const run = (ns, sym, symbols, iter, investor) => {
     const log = createLogger(ns, `[${sym}] `);
     const info = stocks[sym];
     const price = ns.getStockPrice(sym);
+    const investment = getInvestment(investor, sym);
     if (price !== info.lastprice) {
         // update lastprice
         info.lastprice = price;
@@ -70,27 +142,37 @@ const run = (ns, sym, symbols, iter) => {
         if (iter >= 45) {
             if (info.rising && (!oldRising || iter === 45)) {
                 // was falling, now rising, close short and open long
+                releaseInvestment(investor, info.sym);
                 ns.sellShort(info.sym, Number.MAX_SAFE_INTEGER);
-                const volume = Math.floor(getBuyValue(ns, symbols) / price);
-                if (volume > 100) {
-                    log `Buy ${volume} shares`;
-                    ns.buyStock(info.sym, volume);
-                }
-                else {
-                    log `Only want to buy ${volume} shares, skipping...`;
-                }
+                invest(investor, sym, symbols.length, budget => {
+                    const volume = (budget - TRANSACTION_COST) / price;
+                    if (volume > 100) {
+                        log `Buy ${volume} shares`;
+                        const purchasePrice = ns.buyStock(info.sym, volume);
+                        return purchasePrice * volume + TRANSACTION_COST;
+                    }
+                    else {
+                        log `Only want to buy ${volume} shares, skipping...`;
+                        return 0;
+                    }
+                });
             }
             else if (!info.rising && (oldRising || iter === 45)) {
                 // was rising, now falling, close long and open short
+                releaseInvestment(investor, info.sym);
                 ns.sellStock(info.sym, Number.MAX_SAFE_INTEGER);
-                const volume = Math.floor(getBuyValue(ns, symbols) / price);
-                if (volume > 100) {
-                    log `Short ${volume} shares`;
-                    ns.shortStock(info.sym, volume);
-                }
-                else {
-                    log `Only want to short ${volume} shares, skipping...`;
-                }
+                invest(investor, sym, symbols.length, budget => {
+                    const volume = (budget - TRANSACTION_COST) / price;
+                    if (volume > 100) {
+                        log `Short ${volume} shares`;
+                        const purchasePrice = ns.shortStock(info.sym, volume);
+                        return purchasePrice * volume + TRANSACTION_COST;
+                    }
+                    else {
+                        log `Only want to short ${volume} shares, skipping...`;
+                        return 0;
+                    }
+                });
             }
         }
     }
@@ -98,8 +180,8 @@ const run = (ns, sym, symbols, iter) => {
 const main = async (ns) => {
     // get the name of this node
     ns.disableLog('sleep');
+    const investor = new Investor(ns, 'stock', 60);
     const daemonHost = ns.getHostname();
-    const log = createLogger(ns);
     if (daemonHost !== 'home') {
         throw new Error(`Daemon is only intended to run on 'home' host.`);
     }
@@ -124,9 +206,9 @@ const main = async (ns) => {
         if (price !== lastprice) {
             lastprice = price;
             iter++;
-            log `looping, itter: ${iter}`;
+            // log`looping, itter: ${iter}`;
             for (const sym of symbols) {
-                run(ns, sym, symbols, iter);
+                run(ns, sym, symbols, iter, investor);
             }
         }
         await ns.sleep(2500);
