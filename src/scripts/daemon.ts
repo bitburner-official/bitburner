@@ -1,7 +1,11 @@
 import { Host, BitBurner as NS, Script, StockSymbol } from 'bitburner';
 import { Server, getHostname, getServerRam } from '../core/server';
+import { createLogger, createTerminalLogger } from '../utils/print';
 
-import { createLogger } from '../utils/print';
+interface Manifest {
+  readonly scripts: ReadonlyArray<string>;
+  readonly hash: string;
+}
 
 // --- CONSTANTS ---
 
@@ -20,6 +24,30 @@ const stocks: ReadonlyArray<StockSymbol> = Object.freeze([
 ] as Array<StockSymbol>);
 
 // --- FUNCTIONS ---
+
+const download = async (path: string): Promise<string> => {
+  const response = await fetch(path);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch ${path}`);
+  }
+
+  return await response.text();
+};
+
+const downloadFiles = async (ns: NS, manifest: Manifest) => {
+  const files = await Promise.all(
+    manifest.scripts.map(async name => ({
+      name,
+      content: await download(
+        `https://raw.githubusercontent.com/Alxandr/bitburner/dist/${name}`,
+      ),
+    })),
+  );
+
+  for (const { name, content } of files) {
+    ns.write(name, content);
+  }
+};
 
 // start the weakening script for levels
 const startWeakenScript = async (ns: NS, server: Server) => {
@@ -53,7 +81,31 @@ export const main = async (ns: NS) => {
     throw new Error(`Daemon is only intended to run on 'home' host.`);
   }
 
+  const term = createTerminalLogger(ns);
   const server = new Server(ns, daemonHost);
+  const manifestExists = ns.fileExists('manifest.json');
+  let hash: string | null = null;
+  if (manifestExists) {
+    const manifestStr = ns.read('manifest.json');
+    if (manifestStr.length > 0) {
+      const manifest: Manifest = JSON.parse(manifestStr);
+      hash = manifest.hash;
+    }
+  } else {
+    term`No manifest found`;
+  }
+
+  const latestManifestStr = await download(
+    `https://raw.githubusercontent.com/Alxandr/bitburner/dist/manifest.json`,
+  );
+  const latestManifest: Manifest = JSON.parse(latestManifestStr);
+  if (latestManifest.hash !== hash) {
+    term`New version of scripts available, downloading`;
+    await downloadFiles(ns, latestManifest);
+    term`New version of scripts downloaded. Restarting daemon.`;
+    await ns.spawn('daemon.js');
+    return;
+  }
 
   if (await ns.prompt(`Enable hacknet manager?`)) {
     // buy a single hacknet node (required for hacknet script to work).

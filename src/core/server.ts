@@ -52,6 +52,8 @@ export const getRequiredHackingLevel = (server: Server) =>
   server[_ns].getServerRequiredHackingLevel(server[_hostname]);
 export const getRequiredPortCount = (server: Server) =>
   server[_ns].getServerNumPortsRequired(server[_hostname]);
+export const fileExists = (server: Server, fileName: string) =>
+  server[_ns].fileExists(fileName, server[_hostname]);
 
 export const getHackStatus = (server: Server) => {
   if (hasRootAccess(server)) return HackStatus.Hacked;
