@@ -1,13 +1,76 @@
+const getPlayerMoney = (ns) => ns.getServerMoneyAvailable('home');
+
+const LEDGER_FILE = 'ledger.json';
 const _ns = Symbol('ns');
+const _name = Symbol('investor:name');
+const _conf = Symbol('investor:conf');
+class Investor {
+    constructor(ns, name, budget /* percentage (0,100] */) {
+        const host = ns.getHostname();
+        if (host !== 'home') {
+            throw new Error(`Investor instances can only run on the home server.`);
+        }
+        this[_ns] = ns;
+        this[_name] = name;
+        this[_conf] = { budget };
+        Object.freeze(this);
+    }
+}
+const incr = (n, m) => typeof n === 'undefined' ? m : n + m;
+const readLedger = (investor) => {
+    const text = investor[_ns].read(LEDGER_FILE);
+    if (text.trim().length === 0) {
+        return {};
+    }
+    return JSON.parse(text);
+};
+const getInvestments = (investor) => readLedger(investor)[investor[_name]] || {
+    totalInvested: 0,
+    investments: {},
+};
+const updateLedger = (investor, investments) => {
+    const ledger = readLedger(investor);
+    ledger[investor[_name]] = investments;
+    investor[_ns].write(LEDGER_FILE, JSON.stringify(ledger), 'w');
+};
+const getBudget = (investor) => {
+    const investments = getInvestments(investor);
+    const money = getPlayerMoney(investor[_ns]);
+    const { budget } = investor[_conf];
+    const allowedUse = (money * budget) / 100;
+    const moneyLeft = Math.floor(allowedUse - investments.totalInvested);
+    return {
+        totalMoney: money,
+        allowedPercentag: budget,
+        invested: Math.floor(investments.totalInvested),
+        moneyLeft,
+    };
+};
+const tryInvest = (investor, name, price, action) => {
+    const investments = getInvestments(investor);
+    const money = getPlayerMoney(investor[_ns]);
+    const { budget } = investor[_conf];
+    const totalAllowedUse = (money * budget) / 100;
+    const allowedUse = totalAllowedUse - investments.totalInvested;
+    if (allowedUse < price)
+        return false;
+    const used = action(investor[_ns]);
+    investments.totalInvested += used;
+    investments.investments[name] = incr(investments.investments[name], used);
+    updateLedger(investor, investments);
+    return true;
+};
+
+const _ns$1 = Symbol('ns');
 const _index = Symbol('node:index');
 class HacknetNode {
     constructor(ns, index) {
-        this[_ns] = ns;
+        this[_ns$1] = ns;
         this[_index] = index;
         Object.freeze(this);
     }
     toString() {
-        return this[_ns].hacknet.getNodeStats(this[_index]).name;
+        return this[_ns$1].hacknet.getNodeStats(this[_index]).name;
     }
     [Symbol.toStringTag]() {
         return 'HacknetNode';
@@ -28,7 +91,7 @@ const purchaseNode = (ns) => {
     }
     return new HacknetNode(ns, index);
 };
-const getNodeStats = (node) => node[_ns].hacknet.getNodeStats(node[_index]);
+const getNodeStats = (node) => node[_ns$1].hacknet.getNodeStats(node[_index]);
 const getNodeLevel = (node) => getNodeStats(node).level;
 const getNodeRam = (node) => getNodeStats(node).ram;
 const getNodeCores = (node) => getNodeStats(node).cores;
@@ -37,66 +100,16 @@ const isNodeMaxRam = (node) => getNodeRam(node) >= 64;
 const isNodeMaxCores = (node) => getNodeCores(node) >= 16;
 const getNodeLevelCost = (node) => isNodeMaxLevel(node)
     ? null
-    : node[_ns].hacknet.getLevelUpgradeCost(node[_index], 1);
+    : node[_ns$1].hacknet.getLevelUpgradeCost(node[_index], 1);
 const getNodeRamCost = (node) => isNodeMaxRam(node)
     ? null
-    : node[_ns].hacknet.getRamUpgradeCost(node[_index], 1);
+    : node[_ns$1].hacknet.getRamUpgradeCost(node[_index], 1);
 const getNodeCoreCost = (node) => isNodeMaxCores(node)
     ? null
-    : node[_ns].hacknet.getRamUpgradeCost(node[_index], 1);
-const upgradeNodeLevel = (node) => node[_ns].hacknet.upgradeLevel(node[_index], 1);
-const upgradeNodeRam = (node) => node[_ns].hacknet.upgradeRam(node[_index], 1);
-const upgradeNodeCores = (node) => node[_ns].hacknet.upgradeCore(node[_index], 1);
-
-const getPlayerMoney = (ns) => ns.getServerMoneyAvailable('home');
-
-const LEDGER_FILE = 'ledger.json';
-const _ns$1 = Symbol('ns');
-const _name = Symbol('investor:name');
-const _conf = Symbol('investor:conf');
-class Investor {
-    constructor(ns, name, budget /* percentage (0,100] */) {
-        const host = ns.getHostname();
-        if (host !== 'home') {
-            throw new Error(`Investor instances can only run on the home server.`);
-        }
-        this[_ns$1] = ns;
-        this[_name] = name;
-        this[_conf] = { budget };
-        Object.freeze(this);
-    }
-}
-const incr = (n, m) => typeof n === 'undefined' ? m : n + m;
-const readLedger = (investor) => {
-    const text = investor[_ns$1].read(LEDGER_FILE);
-    if (text.trim().length === 0) {
-        return {};
-    }
-    return JSON.parse(text);
-};
-const getInvestments = (investor) => readLedger(investor)[investor[_name]] || {
-    totalInvested: 0,
-    investments: {},
-};
-const updateLedger = (investor, investments) => {
-    const ledger = readLedger(investor);
-    ledger[investor[_name]] = investments;
-    investor[_ns$1].write(LEDGER_FILE, JSON.stringify(ledger), 'w');
-};
-const tryInvest = (investor, name, price, action) => {
-    const investments = getInvestments(investor);
-    const money = getPlayerMoney(investor[_ns$1]);
-    const { budget } = investor[_conf];
-    const totalAllowedUse = (money * budget) / 100;
-    const allowedUse = totalAllowedUse - investments.totalInvested;
-    if (allowedUse < price)
-        return false;
-    const used = action(investor[_ns$1]);
-    investments.totalInvested += used;
-    investments.investments[name] = incr(investments.investments[name], used);
-    updateLedger(investor, investments);
-    return true;
-};
+    : node[_ns$1].hacknet.getRamUpgradeCost(node[_index], 1);
+const upgradeNodeLevel = (node) => node[_ns$1].hacknet.upgradeLevel(node[_index], 1);
+const upgradeNodeRam = (node) => node[_ns$1].hacknet.upgradeRam(node[_index], 1);
+const upgradeNodeCores = (node) => node[_ns$1].hacknet.upgradeCore(node[_index], 1);
 
 const arg = (v) => {
     if (typeof v === 'undefined')
@@ -192,7 +205,8 @@ const main = async (ns) => {
         while (!tryInvest(investor, 'hacknet', action.price, action.exec)) {
             if (first) {
                 first = false;
-                log `Want to ${action.description}, but does not have the budget for ${action.price}. Waiting...`;
+                const budget = getBudget(investor);
+                log `Want to ${action.description}, but does not have the budget for ${action.price}. Money: ${budget.totalMoney}, invested: ${budget.invested}, budget: ${budget.moneyLeft},  Waiting...`;
             }
             await ns.sleep(2000);
         }
