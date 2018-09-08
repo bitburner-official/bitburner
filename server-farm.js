@@ -131,6 +131,29 @@ const tryInvest = (investor, name, price, action) => {
     return true;
 };
 
+const arg = (v) => {
+    if (typeof v === 'undefined')
+        return '<undefined>';
+    if (v === null)
+        return '<null>';
+    if (typeof v.toLocaleString === 'function')
+        return v.toLocaleString();
+    return String(v);
+};
+const prettifyString = (literals, ...placeholders) => {
+    let result = '';
+    for (let i = 0; i < placeholders.length; i++) {
+        result += literals[i];
+        result += arg(placeholders[i]);
+    }
+    // add the last literal
+    result += literals[literals.length - 1];
+    return result;
+};
+const maybeStr = (prefix) => typeof prefix === 'string' ? prefix : '';
+const createLogger = (ns, prefix) => (literals, ...placeholders) => ns.print(maybeStr(prefix) + prettifyString(literals, ...placeholders));
+const createTerminalLogger = (ns, prefix) => (literals, ...placeholders) => ns.tprint(maybeStr(prefix) + prettifyString(literals, ...placeholders));
+
 const scanNetwork = (ns) => {
     const homeServer = {
         server: new Server(ns, 'home'),
@@ -196,7 +219,7 @@ const getPurchasedServersMinRamExponent = (ns, servers) => {
     }
     return minRamExp >= MAX_RAM_EXPONENT ? null : minRamExp;
 };
-const maybeBuyServer = (ns, investor) => {
+const maybeBuyServer = (ns, investor, logger) => {
     const servers = ns.getPurchasedServers();
     const budget = getBudget(investor);
     const minRamExponent = getPurchasedServersMinRamExponent(ns, servers);
@@ -219,11 +242,12 @@ const maybeBuyServer = (ns, investor) => {
         const newServer = ns.purchaseServer('farm', Math.pow(2, ramExponent));
         if (!newServer || newServer.trim().length === 0)
             return 0;
+        logger `Purchased new server ${newServer} with 2^${ramExponent} (${Math.pow(2, ramExponent)}GB) ram`;
         ns.scp(SCRIPT_FILES, 'home', newServer);
         return cost;
     });
 };
-const maybeHackServer = (ns) => {
+const maybeHackServer = (ns, logger) => {
     let newlyHacked = false;
     const network = scanNetwork(ns);
     for (const node of flattenNetwork(network)) {
@@ -231,6 +255,7 @@ const maybeHackServer = (ns) => {
         if (!hacked && getHackStatus(node.server) === HackStatus.Hacked) {
             newlyHacked = true;
             ns.scp(SCRIPT_FILES, 'home', getHostname(node.server));
+            logger `Hacked server ${getHostname(node.server)}`;
         }
     }
     return newlyHacked;
@@ -244,7 +269,7 @@ const getAllServers = (ns) => {
             .map(node => getHostname(node.server)),
     ];
 };
-const retargetServers = async (ns, host) => {
+const retargetServers = async (ns, host, logger) => {
     const maxMoney = ns.getServerMaxMoney(host);
     const minSec = ns.getServerMinSecurityLevel(host);
     //const baseSec = ns.getServerBaseSecurityLevel(host);
@@ -263,20 +288,26 @@ const retargetServers = async (ns, host) => {
         }
         const [_, ram] = ns.getServerRam(server);
         const threads = Math.floor(ram / ramUsage);
+        if (threads < 1) {
+            logger `Can't run script on host ${server}, not enough RAM`;
+            continue;
+        }
         await ns.exec(WORK_SCRIPT, server, threads, host, String(maxSec), String(minMoney));
     }
 };
 const main = async (ns) => {
     ns.disableLog('getServerMoneyAvailable');
     ns.disableLog('sleep');
+    const term = createTerminalLogger(ns);
+    const logger = createLogger(ns);
     const investor = new Investor(ns, 'servers', 40);
     while (true) {
         // First, try to acquire new servers, if we can afford it
-        let newFarmServer = maybeBuyServer(ns, investor);
+        let newFarmServer = maybeBuyServer(ns, investor, term);
         // Then, try to hack any servers we are now high enough level for (or has the tools for)
-        let newHackedServer = maybeHackServer(ns);
+        let newHackedServer = maybeHackServer(ns, term);
         if (newFarmServer || newHackedServer) {
-            await retargetServers(ns, 'foodnstuff');
+            await retargetServers(ns, 'foodnstuff', logger);
         }
         await ns.sleep(10000);
     }
