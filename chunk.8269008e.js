@@ -23,6 +23,7 @@ const getServerRam = (server) => {
 const hasRootAccess = (server) => server[_ns].hasRootAccess(server[_hostname]);
 const getRequiredHackingLevel = (server) => server[_ns].getServerRequiredHackingLevel(server[_hostname]);
 const getRequiredPortCount = (server) => server[_ns].getServerNumPortsRequired(server[_hostname]);
+const fileExists = (server, fileName) => server[_ns].fileExists(fileName, server[_hostname]);
 const getHackStatus = (server) => {
     if (hasRootAccess(server))
         return HackStatus.Hacked;
@@ -58,4 +59,4 @@ const getHackStatus = (server) => {
     return HackStatus.NeedsPorts;
 };
 
-export { Server as a, getHostname as b, getServerRam as c, HackStatus as d, getHackStatus as e };
+export { Server as a, fileExists as b, getHostname as c, getServerRam as d, HackStatus as e, getHackStatus as f };

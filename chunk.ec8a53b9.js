@@ -1,4 +1,4 @@
-import { a as Server, b as getHostname } from './chunk.4117d657.js';
+import { a as Server, c as getHostname } from './chunk.8269008e.js';
 
 const scanNetwork = (ns) => {
     const homeServer = {

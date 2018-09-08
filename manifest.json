@@ -1,15 +1,11 @@
 {
   "scripts": [
-    "chunk.06fc0bd6.js",
-    "chunk.4117d657.js",
     "daemon.js",
     "hacknet.js",
-    "chunk.663dd915.js",
     "list.js",
     "node-path.js",
     "stock-broker.js",
-    "weaken.js",
-    "manifest.json"
+    "weaken.js"
   ],
-  "hash": "6c501544d913903499248c7b7190cdeec3e52c55"
+  "hash": "c1e25a75ee65004015c4dfed6131df3c2bf14543"
 }
