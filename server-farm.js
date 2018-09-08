@@ -22,6 +22,10 @@ class Server {
     }
 }
 const getHostname = (server) => server[_hostname];
+const getServerRam = (server) => {
+    const [total, used] = server[_ns].getServerRam(server[_hostname]);
+    return { total, used };
+};
 const hasRootAccess = (server) => server[_ns].hasRootAccess(server[_hostname]);
 const getRequiredHackingLevel = (server) => server[_ns].getServerRequiredHackingLevel(server[_hostname]);
 const getRequiredPortCount = (server) => server[_ns].getServerNumPortsRequired(server[_hostname]);
@@ -235,7 +239,9 @@ const getAllServers = (ns) => {
     const network = scanNetwork(ns);
     return [
         ...ns.getPurchasedServers(),
-        ...flattenNetwork(network).map(node => getHostname(node.server)),
+        ...flattenNetwork(network)
+            .filter(node => getServerRam(node.server).total > 2)
+            .map(node => getHostname(node.server)),
     ];
 };
 const retargetServers = async (ns, host) => {
