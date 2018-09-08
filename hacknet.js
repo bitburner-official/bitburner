@@ -143,7 +143,7 @@ const main = async (ns) => {
     ns.disableLog('getServerMoneyAvailable');
     ns.disableLog('sleep');
     const log = createLogger(ns);
-    const investor = new Investor(ns, 'hacknet', 20);
+    const investor = new Investor(ns, 'hacknet', 100);
     const nextAction = () => {
         const nodePrice = getNodePurchaseCost(ns);
         let action = {
@@ -212,9 +212,13 @@ const main = async (ns) => {
             if (first) {
                 first = false;
                 const budget = getBudget(investor);
-                log `Want to ${action.description}, but does not have the budget for ${action.price}. Money: ${budget.totalMoney}, invested: ${budget.invested}, budget: ${budget.moneyLeft},  Waiting...`;
+                log `Want to ${action.description}, but does not have the budget for ${action.price}. Money: ${budget.totalMoney}, invested: ${budget.invested}.  Waiting...`;
             }
-            await ns.sleep(2000);
+            else {
+                const budget = getBudget(investor);
+                log `Need ${budget.moneyLeft - action.price} more money...`;
+            }
+            await ns.sleep(5000);
         }
     }
 };
