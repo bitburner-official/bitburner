@@ -278,6 +278,8 @@ const retargetServers = async (ns, host, logger) => {
     const servers = getAllServers(ns);
     const ramUsage = ns.getScriptRam(WORK_SCRIPT, 'home');
     for (const server of servers) {
+        if (server === 'home')
+            continue;
         if (ns.scriptRunning(WORK_SCRIPT, server)) {
             const processInfo = ns
                 .ps(server)
