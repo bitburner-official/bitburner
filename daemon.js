@@ -57,6 +57,7 @@ const stocks = Object.freeze([
     'FLCM',
     'CTYS',
 ]);
+// --- FUNCTIONS ---
 // start the weakening script for levels
 const startWeakenScript = async (ns, server) => {
     const log = createLogger(ns);
@@ -106,8 +107,10 @@ const main = async (ns) => {
         // start stock-broker
         await ns.exec('stock-broker.js', 'home', 1, ...stocks);
     }
-    // start weakening for level
-    await startWeakenScript(ns, server);
+    if (await ns.prompt('Start weakening foodnstuff for exp?')) {
+        // start weakening for level
+        await startWeakenScript(ns, server);
+    }
 };
 
 export { main };
