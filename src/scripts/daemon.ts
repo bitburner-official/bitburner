@@ -91,6 +91,7 @@ export const main = async (ns: NS) => {
   for (const script of latestManifest.scripts) {
     if (!fileExists(server, script)) {
       term`Script missing: ${script}`;
+      term`export { main } from 'https://alxandr.github.io/bitburner/${script}';`;
       anyMissing = true;
     }
   }
