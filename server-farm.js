@@ -285,6 +285,8 @@ const retargetServers = async (ns, host, logger) => {
             if (processInfo.args[0] === host) {
                 continue;
             }
+            ns.scriptKill(WORK_SCRIPT, server);
+            await ns.sleep(200);
         }
         const [ram, used] = ns.getServerRam(server);
         const threads = Math.floor((ram - used) / ramUsage);
