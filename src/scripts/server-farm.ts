@@ -2,6 +2,7 @@ import {
   HackStatus,
   getHackStatus,
   getHostname,
+  getServerRam,
   hasRootAccess,
 } from '../core/server';
 import { Host, BitBurner as NS, Script } from 'bitburner';
@@ -86,7 +87,9 @@ const getAllServers = (ns: NS) => {
   const network = scanNetwork(ns);
   return [
     ...ns.getPurchasedServers(),
-    ...flattenNetwork(network).map(node => getHostname(node.server)),
+    ...flattenNetwork(network)
+      .filter(node => getServerRam(node.server).total > 2)
+      .map(node => getHostname(node.server)),
   ];
 };
 
