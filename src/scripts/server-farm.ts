@@ -1,5 +1,7 @@
 import {
   HackStatus,
+  Server,
+  fileExists,
   getHackStatus,
   getHostname,
   getServerRam,
@@ -74,6 +76,18 @@ const maybeBuyServer = (ns: NS, investor: Investor, logger: Logger) => {
   });
 };
 
+const ensureHasFiles = (
+  ns: NS,
+  server: Server,
+  files: ReadonlyArray<string>,
+) => {
+  for (const file of files) {
+    if (!fileExists(server, file)) {
+      ns.scp(file, 'home', getHostname(server));
+    }
+  }
+};
+
 const maybeHackServer = (ns: NS, logger: Logger) => {
   let newlyHacked = false;
   const network = scanNetwork(ns);
@@ -84,6 +98,8 @@ const maybeHackServer = (ns: NS, logger: Logger) => {
       ns.scp(SCRIPT_FILES, 'home', getHostname(node.server));
       logger`Hacked server ${getHostname(node.server)}`;
     }
+
+    ensureHasFiles(ns, node.server, SCRIPT_FILES);
   }
 
   return newlyHacked;
