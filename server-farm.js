@@ -29,6 +29,7 @@ const getServerRam = (server) => {
 const hasRootAccess = (server) => server[_ns].hasRootAccess(server[_hostname]);
 const getRequiredHackingLevel = (server) => server[_ns].getServerRequiredHackingLevel(server[_hostname]);
 const getRequiredPortCount = (server) => server[_ns].getServerNumPortsRequired(server[_hostname]);
+const fileExists = (server, fileName) => server[_ns].fileExists(fileName, server[_hostname]);
 const getHackStatus = (server) => {
     if (hasRootAccess(server))
         return HackStatus.Hacked;
@@ -247,6 +248,13 @@ const maybeBuyServer = (ns, investor, logger) => {
         return cost;
     });
 };
+const ensureHasFiles = (ns, server, files) => {
+    for (const file of files) {
+        if (!fileExists(server, file)) {
+            ns.scp(file, 'home', getHostname(server));
+        }
+    }
+};
 const maybeHackServer = (ns, logger) => {
     let newlyHacked = false;
     const network = scanNetwork(ns);
@@ -257,6 +265,7 @@ const maybeHackServer = (ns, logger) => {
             ns.scp(SCRIPT_FILES, 'home', getHostname(node.server));
             logger `Hacked server ${getHostname(node.server)}`;
         }
+        ensureHasFiles(ns, node.server, SCRIPT_FILES);
     }
     return newlyHacked;
 };
