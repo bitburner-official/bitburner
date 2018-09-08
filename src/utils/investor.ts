@@ -1,5 +1,4 @@
-import { Host, BitBurner as NS, Script, StockSymbol } from 'bitburner';
-
+import { BitBurner as NS } from 'bitburner';
 import { getPlayerMoney } from '../core/player';
 
 const LEDGER_FILE = 'ledger.json';
