@@ -274,8 +274,10 @@ const getAllServers = (ns) => {
     return [
         ...ns.getPurchasedServers(),
         ...flattenNetwork(network)
-            .filter(node => getServerRam(node.server).total > 2)
-            .map(node => getHostname(node.server)),
+            .map(node => node.server)
+            .filter(hasRootAccess)
+            .filter(server => getServerRam(server).total > 2)
+            .map(getHostname),
     ];
 };
 const retargetServers = async (ns, host, logger) => {
