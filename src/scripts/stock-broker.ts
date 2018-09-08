@@ -120,7 +120,7 @@ export const main = async (ns: NS) => {
   // get the name of this node
   ns.disableLog('getServerMoneyAvailable');
   ns.disableLog('sleep');
-  const investor = new Investor(ns, 'stock', 60);
+  const investor = new Investor(ns, 'stock', 600);
   const daemonHost = ns.getHostname();
   const log = createLogger(ns);
 

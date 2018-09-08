@@ -24,7 +24,7 @@ export const main = async (ns: NS) => {
   ns.disableLog('getServerMoneyAvailable');
   ns.disableLog('sleep');
   const log = createLogger(ns);
-  const investor = new Investor(ns, 'hacknet', 20);
+  const investor = new Investor(ns, 'hacknet', 100);
 
   const nextAction = () => {
     const nodePrice = getNodePurchaseCost(ns);
@@ -95,12 +95,15 @@ export const main = async (ns: NS) => {
         const budget = getBudget(investor);
         log`Want to ${action.description}, but does not have the budget for ${
           action.price
-        }. Money: ${budget.totalMoney}, invested: ${budget.invested}, budget: ${
-          budget.moneyLeft
-        },  Waiting...`;
+        }. Money: ${budget.totalMoney}, invested: ${
+          budget.invested
+        }.  Waiting...`;
+      } else {
+        const budget = getBudget(investor);
+        log`Need ${budget.moneyLeft - action.price} more money...`;
       }
 
-      await ns.sleep(2000);
+      await ns.sleep(5000);
     }
   }
 };
