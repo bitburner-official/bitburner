@@ -48,6 +48,56 @@ const upgradeNodeLevel = (node) => node[_ns].hacknet.upgradeLevel(node[_index], 
 const upgradeNodeRam = (node) => node[_ns].hacknet.upgradeRam(node[_index], 1);
 const upgradeNodeCores = (node) => node[_ns].hacknet.upgradeCore(node[_index], 1);
 
+const getPlayerMoney = (ns) => ns.getServerMoneyAvailable('home');
+
+const LEDGER_FILE = 'ledger.json';
+const _ns$1 = Symbol('ns');
+const _name = Symbol('investor:name');
+const _conf = Symbol('investor:conf');
+class Investor {
+    constructor(ns, name, budget /* percentage (0,100] */) {
+        const host = ns.getHostname();
+        if (host !== 'home') {
+            throw new Error(`Investor instances can only run on the home server.`);
+        }
+        this[_ns$1] = ns;
+        this[_name] = name;
+        this[_conf] = { budget };
+        Object.freeze(this);
+    }
+}
+const incr = (n, m) => typeof n === 'undefined' ? m : n + m;
+const readLedger = (investor) => {
+    const text = investor[_ns$1].read(LEDGER_FILE);
+    if (text.trim().length === 0) {
+        return {};
+    }
+    return JSON.parse(text);
+};
+const getInvestments = (investor) => readLedger(investor)[investor[_name]] || {
+    totalInvested: 0,
+    investments: {},
+};
+const updateLedger = (investor, investments) => {
+    const ledger = readLedger(investor);
+    ledger[investor[_name]] = investments;
+    investor[_ns$1].write(LEDGER_FILE, JSON.stringify(ledger));
+};
+const tryInvest = (investor, name, price, action) => {
+    const investments = getInvestments(investor);
+    const money = getPlayerMoney(investor[_ns$1]);
+    const { budget } = investor[_conf];
+    const totalAllowedUse = (money * budget) / 100;
+    const allowedUse = totalAllowedUse - investments.totalInvested;
+    if (allowedUse < price)
+        return false;
+    const used = action(investor[_ns$1]);
+    investments.totalInvested += used;
+    investments.investments[name] = incr(investments.investments[name], used);
+    updateLedger(investor, investments);
+    return true;
+};
+
 const arg = (v) => {
     if (typeof v === 'undefined')
         return '<undefined>';
@@ -70,85 +120,82 @@ const prettifyString = (literals, ...placeholders) => {
 const maybeStr = (prefix) => typeof prefix === 'string' ? prefix : '';
 const createLogger = (ns, prefix) => (literals, ...placeholders) => ns.print(maybeStr(prefix) + prettifyString(literals, ...placeholders));
 
-const getPlayerMoney = (ns) => ns.getServerMoneyAvailable('home');
-
 const main = async (ns) => {
     ns.disableLog('getServerMoneyAvailable');
     ns.disableLog('sleep');
     const log = createLogger(ns);
+    const investor = new Investor(ns, 'hacknet', 20);
     const nextAction = () => {
         const nodePrice = getNodePurchaseCost(ns);
-        let action = { type: 'purchase', price: nodePrice };
+        let action = {
+            price: nodePrice,
+            description: 'purchase new hacknet node',
+            exec: ns => {
+                const nodePrice = getNodePurchaseCost(ns);
+                if (purchaseNode(ns) === null)
+                    return 0;
+                return nodePrice;
+            },
+        };
         for (let node of getNodes(ns)) {
             const levelCost = getNodeLevelCost(node);
             const ramCost = getNodeRamCost(node);
             const coreCost = getNodeCoreCost(node);
             if (levelCost !== null && levelCost < action.price) {
                 action = {
-                    type: 'level',
                     price: levelCost,
-                    node,
+                    description: `upgrade level of node ${node}`,
+                    exec: ns => {
+                        const levelCost = getNodeLevelCost(node);
+                        if (levelCost === null)
+                            return 0;
+                        if (upgradeNodeLevel(node))
+                            return levelCost;
+                        return 0;
+                    },
                 };
             }
             if (ramCost !== null && ramCost < action.price) {
                 action = {
-                    type: 'ram',
                     price: ramCost,
-                    node,
+                    description: `upgrade ram of node ${node}`,
+                    exec: ns => {
+                        const ramCost = getNodeRamCost(node);
+                        if (ramCost === null)
+                            return 0;
+                        if (upgradeNodeRam(node))
+                            return ramCost;
+                        return 0;
+                    },
                 };
             }
             if (coreCost !== null && coreCost < action.price) {
                 action = {
-                    type: 'core',
                     price: coreCost,
-                    node,
+                    description: `upgrade cores of node ${node}`,
+                    exec: ns => {
+                        const coreCost = getNodeCoreCost(node);
+                        if (coreCost === null)
+                            return 0;
+                        if (upgradeNodeCores(node))
+                            return coreCost;
+                        return 0;
+                    },
                 };
             }
         }
         return action;
     };
-    const allowParts = 3;
-    const allowPurchase = (cost, prevHighestPrice, money) => {
-        if (cost + prevHighestPrice * (allowParts - 1) > money)
-            return false;
-        if (cost * allowParts > money)
-            return false;
-        return true;
-    };
-    let prevHighestPrice = 0;
     while (true) {
         const action = nextAction();
         let first = true;
-        while (!allowPurchase(action.price, prevHighestPrice, getPlayerMoney(ns))) {
+        while (!tryInvest(investor, 'hacknet', action.price, action.exec)) {
             if (first) {
                 first = false;
-                log `Price ${action.price} is too high, waiting for more money.`;
+                log `Want to ${action.description}, but does not have the budget for ${action.price}. Waiting...`;
             }
             await ns.sleep(2000);
         }
-        switch (action.type) {
-            case 'purchase':
-                log `Purchacing new node`;
-                purchaseNode(ns);
-                break;
-            case 'level':
-                log `Upgrading level for node ${action.node}`;
-                upgradeNodeLevel(action.node);
-                break;
-            case 'ram':
-                log `Upgrading ram for node ${action.node}`;
-                upgradeNodeRam(action.node);
-                break;
-            case 'core':
-                log `Upgrading cores for node ${action.node}`;
-                upgradeNodeCores(action.node);
-                break;
-            default:
-                throw new Error(`Invalid action type: ${action.type}`);
-        }
-        // Safety messure
-        await ns.sleep(200);
-        prevHighestPrice = Math.max(prevHighestPrice, action.price);
     }
 };
 
