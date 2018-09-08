@@ -61,7 +61,7 @@ const tryInvest = (investor, name, price, action) => {
         return false;
     const used = action(investor[_ns]);
     if (used <= 0)
-        return;
+        return false;
     investments.totalInvested += used;
     investments.investments[name] = incr(investments.investments[name], used);
     updateLedger(investor, investments);
@@ -179,6 +179,7 @@ const run = (ns, sym, symbols, iter, investor) => {
 };
 const main = async (ns) => {
     // get the name of this node
+    ns.disableLog('getServerMoneyAvailable');
     ns.disableLog('sleep');
     const investor = new Investor(ns, 'stock', 60);
     const daemonHost = ns.getHostname();

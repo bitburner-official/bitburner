@@ -4,8 +4,10 @@
     "hacknet.js",
     "list.js",
     "node-path.js",
+    "server-farm.js",
     "stock-broker.js",
-    "weaken.js"
+    "weaken.js",
+    "work.js"
   ],
-  "hash": "be8b9104570b85f7bd5fd7665671c8cfc4a9071b"
+  "hash": "4ca209835c9b36d452255b92fed5d65c1eebe776"
 }

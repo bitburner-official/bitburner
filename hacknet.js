@@ -60,7 +60,7 @@ const tryInvest = (investor, name, price, action) => {
         return false;
     const used = action(investor[_ns]);
     if (used <= 0)
-        return;
+        return false;
     investments.totalInvested += used;
     investments.investments[name] = incr(investments.investments[name], used);
     updateLedger(investor, investments);

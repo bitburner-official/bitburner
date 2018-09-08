@@ -18,7 +18,6 @@ const getServerRam = (server) => {
     const [total, used] = server[_ns].getServerRam(server[_hostname]);
     return { total, used };
 };
-const fileExists = (server, fileName) => server[_ns].fileExists(fileName, server[_hostname]);
 
 const arg = (v) => {
     if (typeof v === 'undefined')
@@ -41,7 +40,9 @@ const prettifyString = (literals, ...placeholders) => {
 };
 const maybeStr = (prefix) => typeof prefix === 'string' ? prefix : '';
 const createLogger = (ns, prefix) => (literals, ...placeholders) => ns.print(maybeStr(prefix) + prettifyString(literals, ...placeholders));
-const createTerminalLogger = (ns, prefix) => (literals, ...placeholders) => ns.tprint(maybeStr(prefix) + prettifyString(literals, ...placeholders));
+
+const LEDGER_FILE = 'ledger.json';
+const resetInvestments = (ns) => ns.rm(LEDGER_FILE);
 
 // --- CONSTANTS ---
 // server and script to run weaken on ad absurdum
@@ -56,14 +57,6 @@ const stocks = Object.freeze([
     'FLCM',
     'CTYS',
 ]);
-// --- FUNCTIONS ---
-const download = async (path) => {
-    const response = await fetch(path);
-    if (!response.ok) {
-        throw new Error(`Failed to fetch ${path}`);
-    }
-    return await response.text();
-};
 // start the weakening script for levels
 const startWeakenScript = async (ns, server) => {
     const log = createLogger(ns);
@@ -94,19 +87,10 @@ const main = async (ns) => {
     if (daemonHost !== 'home') {
         throw new Error(`Daemon is only intended to run on 'home' host.`);
     }
-    const term = createTerminalLogger(ns);
     const server = new Server(ns, daemonHost);
-    const latestManifestStr = await download(`https://alxandr.github.io/bitburner/manifest.json`);
-    const latestManifest = JSON.parse(latestManifestStr);
-    let anyMissing = false;
-    for (const script of latestManifest.scripts) {
-        if (!fileExists(server, script)) {
-            term `Script missing: ${script}`;
-            anyMissing = true;
-        }
+    if (await ns.prompt(`Remove old investment ledger?`)) {
+        resetInvestments(ns);
     }
-    if (anyMissing)
-        return;
     if (await ns.prompt(`Enable hacknet manager?`)) {
         // buy a single hacknet node (required for hacknet script to work).
         if (ns.hacknet.numNodes() === 0) {
@@ -114,6 +98,9 @@ const main = async (ns) => {
         }
         // start hacknet script
         await ns.exec('hacknet.js', 'home');
+    }
+    if (await ns.prompt(`Enable server farm?`)) {
+        await ns.exec('server-farm.js', 'home');
     }
     if (await ns.prompt(`Enable stock broker`)) {
         // start stock-broker
