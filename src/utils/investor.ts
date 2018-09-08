@@ -62,7 +62,7 @@ const getInvestments = (investor: Investor): LedgerEntry =>
 const updateLedger = (investor: Investor, investments: LedgerEntry) => {
   const ledger = readLedger(investor);
   ledger[investor[_name]] = investments;
-  investor[_ns].write(LEDGER_FILE, JSON.stringify(ledger));
+  investor[_ns].write(LEDGER_FILE, JSON.stringify(ledger), 'w');
 };
 
 export const getBudget = (investor: Investor) => {
