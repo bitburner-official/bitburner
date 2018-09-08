@@ -300,7 +300,7 @@ const retargetServers = async (ns, host, logger) => {
     }
 };
 const main = async (ns) => {
-    ns.disableLog('*');
+    ns.disableLog('ALL');
     const term = createTerminalLogger(ns);
     const logger = createLogger(ns);
     const investor = new Investor(ns, 'servers', 40);
