@@ -22,6 +22,13 @@ type InvestorConfig = {
   readonly budget: number /* percentage (0,100] */;
 };
 
+type Budget = {
+  readonly totalMoney: number;
+  readonly allowedPercentag: number;
+  readonly invested: number;
+  readonly moneyLeft: number;
+};
+
 export class Investor {
   public readonly [_ns]: NS;
   public readonly [_name]: string;
@@ -65,12 +72,19 @@ const updateLedger = (investor: Investor, investments: LedgerEntry) => {
   investor[_ns].write(LEDGER_FILE, JSON.stringify(ledger), 'w');
 };
 
-export const getBudget = (investor: Investor) => {
+export const getBudget = (investor: Investor): Budget => {
   const investments = getInvestments(investor);
   const money = getPlayerMoney(investor[_ns]);
   const { budget } = investor[_conf];
   const allowedUse = (money * budget) / 100;
-  return allowedUse - investments.totalInvested;
+  const moneyLeft = Math.floor(allowedUse - investments.totalInvested);
+
+  return {
+    totalMoney: money,
+    allowedPercentag: budget,
+    invested: Math.floor(investments.totalInvested),
+    moneyLeft,
+  };
 };
 
 export const tryInvest = (

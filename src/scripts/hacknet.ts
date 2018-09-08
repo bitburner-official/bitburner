@@ -1,5 +1,5 @@
+import { Investor, getBudget, tryInvest } from '../utils/investor';
 import {
-  HacknetNode,
   getNodeCoreCost,
   getNodeLevelCost,
   getNodePurchaseCost,
@@ -10,11 +10,9 @@ import {
   upgradeNodeLevel,
   upgradeNodeRam,
 } from '../core/hacknet';
-import { Investor, tryInvest } from '../utils/investor';
 
 import { BitBurner as NS } from 'bitburner';
 import { createLogger } from '../utils/print';
-import { getPlayerMoney } from '../core/player';
 
 type Action = {
   readonly description: string;
@@ -94,9 +92,12 @@ export const main = async (ns: NS) => {
     while (!tryInvest(investor, 'hacknet', action.price, action.exec)) {
       if (first) {
         first = false;
+        const budget = getBudget(investor);
         log`Want to ${action.description}, but does not have the budget for ${
           action.price
-        }. Waiting...`;
+        }. Money: ${budget.totalMoney}, invested: ${budget.invested}, budget: ${
+          budget.moneyLeft
+        },  Waiting...`;
       }
 
       await ns.sleep(2000);
