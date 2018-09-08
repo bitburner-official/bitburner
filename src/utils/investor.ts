@@ -112,7 +112,7 @@ export const tryInvest = (
   if (allowedUse < price) return false;
 
   const used = action(investor[_ns]);
-  if (used <= 0) return;
+  if (used <= 0) return false;
   investments.totalInvested += used;
   investments.investments[name] = incr(investments.investments[name], used);
   updateLedger(investor, investments);
@@ -130,3 +130,5 @@ export const releaseInvestment = (investor: Investor, name: string) => {
   delete investments.investments[name];
   updateLedger(investor, investments);
 };
+
+export const resetInvestments = (ns: NS) => ns.rm(LEDGER_FILE);

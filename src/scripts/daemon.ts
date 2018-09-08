@@ -1,6 +1,8 @@
 import { Host, BitBurner as NS, Script, StockSymbol } from 'bitburner';
-import { Server, fileExists, getHostname, getServerRam } from '../core/server';
+import { Server, getHostname, getServerRam } from '../core/server';
 import { createLogger, createTerminalLogger } from '../utils/print';
+
+import { resetInvestments } from '../utils/investor';
 
 interface Manifest {
   readonly scripts: ReadonlyArray<string>;
@@ -83,19 +85,10 @@ export const main = async (ns: NS) => {
 
   const term = createTerminalLogger(ns);
   const server = new Server(ns, daemonHost);
-  const latestManifestStr = await download(
-    `https://alxandr.github.io/bitburner/manifest.json`,
-  );
-  const latestManifest: Manifest = JSON.parse(latestManifestStr);
-  let anyMissing = false;
-  for (const script of latestManifest.scripts) {
-    if (!fileExists(server, script)) {
-      term`Script missing: ${script}`;
-      anyMissing = true;
-    }
-  }
 
-  if (anyMissing) return;
+  if (await ns.prompt(`Remove old investment ledger?`)) {
+    resetInvestments(ns);
+  }
 
   if (await ns.prompt(`Enable hacknet manager?`)) {
     // buy a single hacknet node (required for hacknet script to work).
@@ -105,6 +98,10 @@ export const main = async (ns: NS) => {
 
     // start hacknet script
     await ns.exec('hacknet.js', 'home');
+  }
+
+  if (await ns.prompt(`Enable server farm?`)) {
+    await ns.exec('server-farm.js', 'home');
   }
 
   if (await ns.prompt(`Enable stock broker`)) {
