@@ -141,7 +141,7 @@ const retargetServers = async (ns: NS, host: Host, logger: Logger) => {
 };
 
 export const main = async (ns: NS) => {
-  ns.disableLog('*');
+  ns.disableLog('ALL');
   const term = createTerminalLogger(ns);
   const logger = createLogger(ns);
 
