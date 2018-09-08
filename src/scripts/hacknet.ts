@@ -100,7 +100,7 @@ export const main = async (ns: NS) => {
         }.  Waiting...`;
       } else {
         const budget = getBudget(investor);
-        log`Need ${budget.moneyLeft - action.price} more money...`;
+        log`Need ${action.price - budget.moneyLeft} more money...`;
       }
 
       await ns.sleep(5000);
