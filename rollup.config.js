@@ -1,5 +1,8 @@
 import execa from 'execa';
+import fs from 'fs';
 import glob from 'glob';
+import mkdirp from 'mkdirp';
+import path from 'path';
 import { promisify } from 'util';
 import typescript from 'rollup-plugin-typescript2';
 
@@ -30,29 +33,44 @@ const customPlugin = () => ({
 
 const conf = async () => {
   const scripts = await promisify(glob)('./src/scripts/*.ts');
-  const plugins = [typescript(), customPlugin()];
-  const output = {
-    format: 'es',
-    dir: 'dist',
-    chunkFileNames: `[name].[hash].js`,
-  };
-  const input = scripts;
-  return {
-    input,
-    output,
-    plugins,
-    experimentalCodeSplitting: true,
-  };
-  // return scripts.map(scriptPath => {
-  //   const input = scriptPath;
-  //   const output = {
-  //     file: path.join('dist', path.basename(scriptPath, '.ts') + '.js'),
-  //     format: 'es',
-  //   };
+  await mkdirp('dist');
+  await promisify(fs.writeFile)(
+    path.resolve('dist', 'manifest.json'),
+    JSON.stringify(
+      {
+        scripts: scripts.map(s => path.basename(s, '.ts') + '.js'),
+        hash: await getCurrentHash(),
+      },
+      null,
+      2,
+    ),
+    'utf-8',
+  );
+  // const plugins = [typescript(), customPlugin()];
+  // const output = {
+  //   format: 'es',
+  //   dir: 'dist',
+  //   chunkFileNames: `[name].[hash].js`,
+  // };
+  // const input = scripts;
+  // return {
+  //   input,
+  //   output,
+  //   plugins,
+  //   experimentalCodeSplitting: true,
+  //   optimizeChunks: true,
+  //   chunkGroupingSize: Number.MAX_SAFE_INTEGER,
+  // };
+  return scripts.map(scriptPath => {
+    const input = scriptPath;
+    const output = {
+      file: path.join('dist', path.basename(scriptPath, '.ts') + '.js'),
+      format: 'es',
+    };
 
-  //   const plugins = [typescript(), customPlugin];
-  //   return { input, output, plugins };
-  // });
+    const plugins = [typescript()];
+    return { input, output, plugins };
+  });
 };
 
 export default conf();

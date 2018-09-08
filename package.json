@@ -9,6 +9,7 @@
   "devDependencies": {
     "execa": "^1.0.0",
     "glob": "^7.1.2",
+    "mkdirp": "^0.5.1",
     "rollup": "^0.64.1",
     "rollup-plugin-terser": "^1.0.1",
     "rollup-plugin-typescript2": "^0.16.1",
