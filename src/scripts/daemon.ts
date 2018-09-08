@@ -1,13 +1,8 @@
 import { Host, BitBurner as NS, Script, StockSymbol } from 'bitburner';
 import { Server, getHostname, getServerRam } from '../core/server';
-import { createLogger, createTerminalLogger } from '../utils/print';
 
+import { createLogger } from '../utils/print';
 import { resetInvestments } from '../utils/investor';
-
-interface Manifest {
-  readonly scripts: ReadonlyArray<string>;
-  readonly hash: string;
-}
 
 // --- CONSTANTS ---
 
@@ -26,30 +21,6 @@ const stocks: ReadonlyArray<StockSymbol> = Object.freeze([
 ] as Array<StockSymbol>);
 
 // --- FUNCTIONS ---
-
-const download = async (path: string): Promise<string> => {
-  const response = await fetch(path);
-  if (!response.ok) {
-    throw new Error(`Failed to fetch ${path}`);
-  }
-
-  return await response.text();
-};
-
-const downloadFiles = async (ns: NS, manifest: Manifest) => {
-  const files = await Promise.all(
-    manifest.scripts.map(async name => ({
-      name,
-      content: await download(
-        `https://raw.githubusercontent.com/Alxandr/bitburner/dist/${name}`,
-      ),
-    })),
-  );
-
-  for (const { name, content } of files) {
-    ns.write(name, content);
-  }
-};
 
 // start the weakening script for levels
 const startWeakenScript = async (ns: NS, server: Server) => {
@@ -83,7 +54,6 @@ export const main = async (ns: NS) => {
     throw new Error(`Daemon is only intended to run on 'home' host.`);
   }
 
-  const term = createTerminalLogger(ns);
   const server = new Server(ns, daemonHost);
 
   if (await ns.prompt(`Remove old investment ledger?`)) {
@@ -109,6 +79,8 @@ export const main = async (ns: NS) => {
     await ns.exec('stock-broker.js', 'home', 1, ...stocks);
   }
 
-  // start weakening for level
-  await startWeakenScript(ns, server);
+  if (await ns.prompt('Start weakening foodnstuff for exp?')) {
+    // start weakening for level
+    await startWeakenScript(ns, server);
+  }
 };
