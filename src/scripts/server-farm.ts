@@ -118,8 +118,8 @@ const retargetServers = async (ns: NS, host: Host, logger: Logger) => {
       }
     }
 
-    const [_, ram] = ns.getServerRam(server);
-    const threads = Math.floor(ram / ramUsage);
+    const [ram, used] = ns.getServerRam(server);
+    const threads = Math.floor((ram - used) / ramUsage);
     if (threads < 1) {
       logger`Can't run script on host ${server}, not enough RAM`;
       continue;
@@ -137,8 +137,7 @@ const retargetServers = async (ns: NS, host: Host, logger: Logger) => {
 };
 
 export const main = async (ns: NS) => {
-  ns.disableLog('getServerMoneyAvailable');
-  ns.disableLog('sleep');
+  ns.disableLog('*');
   const term = createTerminalLogger(ns);
   const logger = createLogger(ns);
 
