@@ -7,6 +7,7 @@ import {
 } from '../core/server';
 import { Host, BitBurner as NS, Script } from 'bitburner';
 import { Investor, getBudget, tryInvest } from '../utils/investor';
+import { Logger, createLogger, createTerminalLogger } from '../utils/print';
 import { flattenNetwork, scanNetwork } from '../utils/network';
 
 const MIN_RAM_EXPONENT = 4;
@@ -37,7 +38,7 @@ const getPurchasedServersMinRamExponent = (
   return minRamExp >= MAX_RAM_EXPONENT ? null : minRamExp;
 };
 
-const maybeBuyServer = (ns: NS, investor: Investor) => {
+const maybeBuyServer = (ns: NS, investor: Investor, logger: Logger) => {
   const servers = ns.getPurchasedServers();
   const budget = getBudget(investor);
   const minRamExponent = getPurchasedServersMinRamExponent(ns, servers);
@@ -64,12 +65,16 @@ const maybeBuyServer = (ns: NS, investor: Investor) => {
   return tryInvest(investor, 'host', cost, ns => {
     const newServer = ns.purchaseServer('farm', Math.pow(2, ramExponent));
     if (!newServer || newServer.trim().length === 0) return 0;
+    logger`Purchased new server ${newServer} with 2^${ramExponent} (${Math.pow(
+      2,
+      ramExponent,
+    )}GB) ram`;
     ns.scp(SCRIPT_FILES, 'home', newServer);
     return cost;
   });
 };
 
-const maybeHackServer = (ns: NS) => {
+const maybeHackServer = (ns: NS, logger: Logger) => {
   let newlyHacked = false;
   const network = scanNetwork(ns);
   for (const node of flattenNetwork(network)) {
@@ -77,6 +82,7 @@ const maybeHackServer = (ns: NS) => {
     if (!hacked && getHackStatus(node.server) === HackStatus.Hacked) {
       newlyHacked = true;
       ns.scp(SCRIPT_FILES, 'home', getHostname(node.server));
+      logger`Hacked server ${getHostname(node.server)}`;
     }
   }
 
@@ -93,7 +99,7 @@ const getAllServers = (ns: NS) => {
   ];
 };
 
-const retargetServers = async (ns: NS, host: Host) => {
+const retargetServers = async (ns: NS, host: Host, logger: Logger) => {
   const maxMoney = ns.getServerMaxMoney(host);
   const minSec = ns.getServerMinSecurityLevel(host);
   //const baseSec = ns.getServerBaseSecurityLevel(host);
@@ -114,6 +120,11 @@ const retargetServers = async (ns: NS, host: Host) => {
 
     const [_, ram] = ns.getServerRam(server);
     const threads = Math.floor(ram / ramUsage);
+    if (threads < 1) {
+      logger`Can't run script on host ${server}, not enough RAM`;
+      continue;
+    }
+
     await ns.exec(
       WORK_SCRIPT,
       server,
@@ -128,17 +139,19 @@ const retargetServers = async (ns: NS, host: Host) => {
 export const main = async (ns: NS) => {
   ns.disableLog('getServerMoneyAvailable');
   ns.disableLog('sleep');
+  const term = createTerminalLogger(ns);
+  const logger = createLogger(ns);
 
   const investor = new Investor(ns, 'servers', 40);
   while (true) {
     // First, try to acquire new servers, if we can afford it
-    let newFarmServer = maybeBuyServer(ns, investor);
+    let newFarmServer = maybeBuyServer(ns, investor, term);
 
     // Then, try to hack any servers we are now high enough level for (or has the tools for)
-    let newHackedServer = maybeHackServer(ns);
+    let newHackedServer = maybeHackServer(ns, term);
 
     if (newFarmServer || newHackedServer) {
-      await retargetServers(ns, 'foodnstuff');
+      await retargetServers(ns, 'foodnstuff', logger);
     }
 
     await ns.sleep(10_000);
