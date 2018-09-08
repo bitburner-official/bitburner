@@ -81,7 +81,7 @@ export const getBudget = (
   const { budget } = investor[_conf];
   const allowedUse = Math.floor((money * budget) / 100);
   const totalInvested = Math.floor(investments.totalInvested);
-  const moneyLeft = Math.floor(allowedUse - totalInvested);
+  const moneyLeft = Math.min(Math.floor(allowedUse - totalInvested), money);
 
   return {
     totalMoney: money,
@@ -110,6 +110,7 @@ export const tryInvest = (
   const totalAllowedUse = (money * budget) / 100;
   const allowedUse = totalAllowedUse - investments.totalInvested;
   if (allowedUse < price) return false;
+  if (price > money) return false;
 
   const used = action(investor[_ns]);
   if (used <= 0) return false;

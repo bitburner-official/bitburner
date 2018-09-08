@@ -32,7 +32,7 @@ const invest = (
 ) => {
   const budget = getBudget(investor, sym);
   const maxInvestment = Math.floor(budget.allowedUse / totalSymbols);
-  const left = maxInvestment - budget.invested;
+  const left = Math.min(maxInvestment - budget.invested, budget.totalMoney);
   tryInvest(investor, sym, left, () => buy(left));
 };
 
