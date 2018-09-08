@@ -39,7 +39,7 @@ const getBudget = (investor, name = null) => {
     const { budget } = investor[_conf];
     const allowedUse = Math.floor((money * budget) / 100);
     const totalInvested = Math.floor(investments.totalInvested);
-    const moneyLeft = Math.floor(allowedUse - totalInvested);
+    const moneyLeft = Math.min(Math.floor(allowedUse - totalInvested), money);
     return {
         totalMoney: money,
         allowedPercentag: budget,
@@ -58,6 +58,8 @@ const tryInvest = (investor, name, price, action) => {
     const totalAllowedUse = (money * budget) / 100;
     const allowedUse = totalAllowedUse - investments.totalInvested;
     if (allowedUse < price)
+        return false;
+    if (price > money)
         return false;
     const used = action(investor[_ns]);
     if (used <= 0)
@@ -105,7 +107,7 @@ const stocks = {};
 const invest = (investor, sym, totalSymbols, buy) => {
     const budget = getBudget(investor, sym);
     const maxInvestment = Math.floor(budget.allowedUse / totalSymbols);
-    const left = maxInvestment - budget.invested;
+    const left = Math.min(maxInvestment - budget.invested, budget.totalMoney);
     tryInvest(investor, sym, left, () => buy(left));
 };
 const run = (ns, sym, symbols, iter, investor) => {
