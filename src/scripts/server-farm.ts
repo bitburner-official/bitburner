@@ -143,6 +143,7 @@ export const main = async (ns: NS) => {
   const logger = createLogger(ns);
 
   const investor = new Investor(ns, 'servers', 40);
+  await retargetServers(ns, 'foodnstuff', logger);
   while (true) {
     // First, try to acquire new servers, if we can afford it
     let newFarmServer = maybeBuyServer(ns, investor, term);
