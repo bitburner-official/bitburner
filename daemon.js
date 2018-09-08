@@ -1,5 +1,47 @@
-import { a as Server, b as fileExists, c as getHostname, d as getServerRam } from './chunk.8269008e.js';
-import { g as createLogger, h as createTerminalLogger } from './chunk.06fc0bd6.js';
+const _hostname = Symbol('server:hostname');
+const _ns = Symbol('ns');
+var HackStatus;
+(function (HackStatus) {
+    HackStatus[HackStatus["Hacked"] = 0] = "Hacked";
+    HackStatus[HackStatus["NeedsLevel"] = 1] = "NeedsLevel";
+    HackStatus[HackStatus["NeedsPorts"] = 2] = "NeedsPorts";
+})(HackStatus || (HackStatus = {}));
+class Server {
+    constructor(ns, hostname) {
+        this[_hostname] = hostname;
+        this[_ns] = ns;
+        Object.freeze(this);
+    }
+}
+const getHostname = (server) => server[_hostname];
+const getServerRam = (server) => {
+    const [total, used] = server[_ns].getServerRam(server[_hostname]);
+    return { total, used };
+};
+const fileExists = (server, fileName) => server[_ns].fileExists(fileName, server[_hostname]);
+
+const arg = (v) => {
+    if (typeof v === 'undefined')
+        return '<undefined>';
+    if (v === null)
+        return '<null>';
+    if (typeof v.toLocaleString === 'function')
+        return v.toLocaleString();
+    return String(v);
+};
+const prettifyString = (literals, ...placeholders) => {
+    let result = '';
+    for (let i = 0; i < placeholders.length; i++) {
+        result += literals[i];
+        result += arg(placeholders[i]);
+    }
+    // add the last literal
+    result += literals[literals.length - 1];
+    return result;
+};
+const maybeStr = (prefix) => typeof prefix === 'string' ? prefix : '';
+const createLogger = (ns, prefix) => (literals, ...placeholders) => ns.print(maybeStr(prefix) + prettifyString(literals, ...placeholders));
+const createTerminalLogger = (ns, prefix) => (literals, ...placeholders) => ns.tprint(maybeStr(prefix) + prettifyString(literals, ...placeholders));
 
 // --- CONSTANTS ---
 // server and script to run weaken on ad absurdum
@@ -60,7 +102,6 @@ const main = async (ns) => {
     for (const script of latestManifest.scripts) {
         if (!fileExists(server, script)) {
             term `Script missing: ${script}`;
-            term `export { main } from 'https://alxandr.github.io/bitburner/${script}';`;
             anyMissing = true;
         }
     }

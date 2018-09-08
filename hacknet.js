@@ -1,5 +1,3 @@
-import { g as createLogger, i as getPlayerMoney } from './chunk.06fc0bd6.js';
-
 const _ns = Symbol('ns');
 const _index = Symbol('node:index');
 class HacknetNode {
@@ -49,6 +47,30 @@ const getNodeCoreCost = (node) => isNodeMaxCores(node)
 const upgradeNodeLevel = (node) => node[_ns].hacknet.upgradeLevel(node[_index], 1);
 const upgradeNodeRam = (node) => node[_ns].hacknet.upgradeRam(node[_index], 1);
 const upgradeNodeCores = (node) => node[_ns].hacknet.upgradeCore(node[_index], 1);
+
+const arg = (v) => {
+    if (typeof v === 'undefined')
+        return '<undefined>';
+    if (v === null)
+        return '<null>';
+    if (typeof v.toLocaleString === 'function')
+        return v.toLocaleString();
+    return String(v);
+};
+const prettifyString = (literals, ...placeholders) => {
+    let result = '';
+    for (let i = 0; i < placeholders.length; i++) {
+        result += literals[i];
+        result += arg(placeholders[i]);
+    }
+    // add the last literal
+    result += literals[literals.length - 1];
+    return result;
+};
+const maybeStr = (prefix) => typeof prefix === 'string' ? prefix : '';
+const createLogger = (ns, prefix) => (literals, ...placeholders) => ns.print(maybeStr(prefix) + prettifyString(literals, ...placeholders));
+
+const getPlayerMoney = (ns) => ns.getServerMoneyAvailable('home');
 
 const main = async (ns) => {
     ns.disableLog('getServerMoneyAvailable');
