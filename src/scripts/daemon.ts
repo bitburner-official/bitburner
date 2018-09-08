@@ -1,5 +1,5 @@
 import { Host, BitBurner as NS, Script, StockSymbol } from 'bitburner';
-import { Server, getHostname, getServerRam } from '../core/server';
+import { Server, fileExists, getHostname, getServerRam } from '../core/server';
 import { createLogger, createTerminalLogger } from '../utils/print';
 
 interface Manifest {
@@ -83,29 +83,19 @@ export const main = async (ns: NS) => {
 
   const term = createTerminalLogger(ns);
   const server = new Server(ns, daemonHost);
-  const manifestExists = ns.fileExists('manifest.json');
-  let hash: string | null = null;
-  if (manifestExists) {
-    const manifestStr = ns.read('manifest.json');
-    if (manifestStr.length > 0) {
-      const manifest: Manifest = JSON.parse(manifestStr);
-      hash = manifest.hash;
-    }
-  } else {
-    term`No manifest found`;
-  }
-
   const latestManifestStr = await download(
-    `https://raw.githubusercontent.com/Alxandr/bitburner/dist/manifest.json`,
+    `https://alxandr.github.io/bitburner/manifest.json`,
   );
   const latestManifest: Manifest = JSON.parse(latestManifestStr);
-  if (latestManifest.hash !== hash) {
-    term`New version of scripts available, downloading`;
-    await downloadFiles(ns, latestManifest);
-    term`New version of scripts downloaded. Restarting daemon.`;
-    await ns.spawn('daemon.js');
-    return;
+  let anyMissing = false;
+  for (const script of latestManifest.scripts) {
+    if (!fileExists(server, script)) {
+      term`Script missing: ${script}`;
+      anyMissing = true;
+    }
   }
+
+  if (anyMissing) return;
 
   if (await ns.prompt(`Enable hacknet manager?`)) {
     // buy a single hacknet node (required for hacknet script to work).

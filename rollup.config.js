@@ -13,7 +13,7 @@ const getCurrentHash = async () => {
 const _generateBundle = async (ctx, outputOptions, bundle, isWrite) => {
   bundle[`manifest.json`] = JSON.stringify(
     {
-      scripts: Object.keys(bundle).concat(['manifest.json']),
+      scripts: Object.keys(bundle).filter(n => !n.includes('chunk')),
       hash: await getCurrentHash(),
     },
     null,
