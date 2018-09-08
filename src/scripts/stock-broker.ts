@@ -1,7 +1,16 @@
+import {
+  Investor,
+  getBudget,
+  getInvestment,
+  releaseInvestment,
+  tryInvest,
+} from '../utils/investor';
 import { BitBurner as NS, StockSymbol } from 'bitburner';
 
 import { createLogger } from '../utils/print';
 import { getPlayerMoney } from '../core/player';
+
+const TRANSACTION_COST = 100_000;
 
 type StockInfo = {
   readonly sym: StockSymbol;
@@ -15,21 +24,16 @@ type StockInfo = {
 
 const stocks: { [sym: string]: StockInfo } = {};
 
-const getBuyValue = (ns: NS, symbols: ReadonlyArray<StockSymbol>) => {
-  let positions = 0;
-
-  // how many of the stocks do we currently have a position open?
-  for (const sym of symbols) {
-    const pos = ns.getStockPosition(sym);
-    if (pos[0] + pos[2] !== 0) {
-      positions++;
-    }
-  }
-
-  // allow opening of a position using of a proportion of available cash
-  // depending on number of already open positions
-  const buyValue = getPlayerMoney(ns) / (symbols.length + 1 - positions);
-  return buyValue - 100000;
+const invest = (
+  investor: Investor,
+  sym: StockSymbol,
+  totalSymbols: number,
+  buy: (budget: number) => number,
+) => {
+  const budget = getBudget(investor, sym);
+  const maxInvestment = Math.floor(budget.allowedUse / totalSymbols);
+  const left = maxInvestment - budget.invested;
+  tryInvest(investor, sym, left, () => buy(left));
 };
 
 const run = (
@@ -37,10 +41,12 @@ const run = (
   sym: StockSymbol,
   symbols: ReadonlyArray<StockSymbol>,
   iter: number,
+  investor: Investor,
 ) => {
   const log = createLogger(ns, `[${sym}] `);
   const info = stocks[sym];
   const price = ns.getStockPrice(sym);
+  const investment = getInvestment(investor, sym);
   if (price !== info.lastprice) {
     // update lastprice
     info.lastprice = price;
@@ -75,24 +81,36 @@ const run = (
     if (iter >= 45) {
       if (info.rising && (!oldRising || iter === 45)) {
         // was falling, now rising, close short and open long
+        releaseInvestment(investor, info.sym);
         ns.sellShort(info.sym, Number.MAX_SAFE_INTEGER);
-        const volume = Math.floor(getBuyValue(ns, symbols) / price);
-        if (volume > 100) {
-          log`Buy ${volume} shares`;
-          ns.buyStock(info.sym, volume);
-        } else {
-          log`Only want to buy ${volume} shares, skipping...`;
-        }
+
+        invest(investor, sym, symbols.length, budget => {
+          const volume = (budget - TRANSACTION_COST) / price;
+          if (volume > 100) {
+            log`Buy ${volume} shares`;
+            const purchasePrice = ns.buyStock(info.sym, volume);
+            return purchasePrice * volume + TRANSACTION_COST;
+          } else {
+            log`Only want to buy ${volume} shares, skipping...`;
+            return 0;
+          }
+        });
       } else if (!info.rising && (oldRising || iter === 45)) {
         // was rising, now falling, close long and open short
+        releaseInvestment(investor, info.sym);
         ns.sellStock(info.sym, Number.MAX_SAFE_INTEGER);
-        const volume = Math.floor(getBuyValue(ns, symbols) / price);
-        if (volume > 100) {
-          log`Short ${volume} shares`;
-          ns.shortStock(info.sym, volume);
-        } else {
-          log`Only want to short ${volume} shares, skipping...`;
-        }
+
+        invest(investor, sym, symbols.length, budget => {
+          const volume = (budget - TRANSACTION_COST) / price;
+          if (volume > 100) {
+            log`Short ${volume} shares`;
+            const purchasePrice = ns.shortStock(info.sym, volume);
+            return purchasePrice * volume + TRANSACTION_COST;
+          } else {
+            log`Only want to short ${volume} shares, skipping...`;
+            return 0;
+          }
+        });
       }
     }
   }
@@ -101,6 +119,7 @@ const run = (
 export const main = async (ns: NS) => {
   // get the name of this node
   ns.disableLog('sleep');
+  const investor = new Investor(ns, 'stock', 60);
   const daemonHost = ns.getHostname();
   const log = createLogger(ns);
 
@@ -132,9 +151,9 @@ export const main = async (ns: NS) => {
       lastprice = price;
       iter++;
 
-      log`looping, itter: ${iter}`;
+      // log`looping, itter: ${iter}`;
       for (const sym of symbols) {
-        run(ns, sym, symbols, iter);
+        run(ns, sym, symbols, iter, investor);
       }
     }
 

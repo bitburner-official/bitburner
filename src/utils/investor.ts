@@ -27,6 +27,7 @@ type Budget = {
   readonly allowedPercentag: number;
   readonly invested: number;
   readonly moneyLeft: number;
+  readonly allowedUse: number;
 };
 
 export class Investor {
@@ -69,23 +70,34 @@ const getInvestments = (investor: Investor): LedgerEntry =>
 const updateLedger = (investor: Investor, investments: LedgerEntry) => {
   const ledger = readLedger(investor);
   ledger[investor[_name]] = investments;
-  investor[_ns].write(LEDGER_FILE, JSON.stringify(ledger), 'w');
+  investor[_ns].write(LEDGER_FILE, JSON.stringify(ledger, null, 2), 'w');
 };
 
-export const getBudget = (investor: Investor): Budget => {
+export const getBudget = (
+  investor: Investor,
+  name: string | null = null,
+): Budget => {
   const investments = getInvestments(investor);
   const money = getPlayerMoney(investor[_ns]);
   const { budget } = investor[_conf];
-  const allowedUse = (money * budget) / 100;
-  const moneyLeft = Math.floor(allowedUse - investments.totalInvested);
+  const allowedUse = Math.floor((money * budget) / 100);
+  const totalInvested = Math.floor(investments.totalInvested);
+  const moneyLeft = Math.floor(allowedUse - totalInvested);
 
   return {
     totalMoney: money,
     allowedPercentag: budget,
-    invested: Math.floor(investments.totalInvested),
+    invested:
+      name === null
+        ? totalInvested
+        : Math.floor(investments.investments[name] || 0),
+    allowedUse,
     moneyLeft,
   };
 };
+
+export const getInvestment = (investor: Investor, name: string) =>
+  getInvestments(investor).investments[name] || 0;
 
 export const tryInvest = (
   investor: Investor,
@@ -101,6 +113,7 @@ export const tryInvest = (
   if (allowedUse < price) return false;
 
   const used = action(investor[_ns]);
+  if (used <= 0) return;
   investments.totalInvested += used;
   investments.investments[name] = incr(investments.investments[name], used);
   updateLedger(investor, investments);
