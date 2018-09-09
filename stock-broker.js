@@ -183,7 +183,7 @@ const main = async (ns) => {
     // get the name of this node
     ns.disableLog('getServerMoneyAvailable');
     ns.disableLog('sleep');
-    const investor = new Investor(ns, 'stock', 600);
+    const investor = new Investor(ns, 'stock', 80);
     const daemonHost = ns.getHostname();
     if (daemonHost !== 'home') {
         throw new Error(`Daemon is only intended to run on 'home' host.`);
