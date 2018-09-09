@@ -205,6 +205,21 @@ const MIN_RAM_EXPONENT = 4;
 const MAX_RAM_EXPONENT = 20;
 const SCRIPT_FILES = ['weaken.js', 'work.js'];
 const WORK_SCRIPT = 'work.js';
+const deleteSingleServer = (ns, servers, logger) => {
+    let minRam = Number.MAX_SAFE_INTEGER;
+    let minServer = null;
+    for (const server of servers) {
+        const [ram] = ns.getServerRam(server);
+        if (ram < minRam) {
+            minRam = ram;
+            minServer = server;
+        }
+    }
+    if (minServer !== null) {
+        logger `Deleting server ${minServer}`;
+        ns.deleteServer(minServer);
+    }
+};
 const getPurchasedServersMinRamExponent = (ns, servers) => {
     if (servers.length === 0) {
         return MIN_RAM_EXPONENT;
@@ -226,6 +241,7 @@ const maybeBuyServer = (ns, investor, logger) => {
     const servers = ns.getPurchasedServers();
     const budget = getBudget(investor);
     const minRamExponent = getPurchasedServersMinRamExponent(ns, servers);
+    const limit = ns.getPurchasedServerLimit();
     // done, all servers max upgraded, nothing more to do
     if (minRamExponent === null)
         return false;
@@ -236,12 +252,14 @@ const maybeBuyServer = (ns, investor, logger) => {
     }
     if (ns.getPurchasedServerCost(Math.pow(2, ramExponent)) > budget.moneyLeft) {
         // We can't afford any new servers
-        if (ramExponent <= minRamExponent)
+        if (ramExponent > minRamExponent)
             return false;
         ramExponent -= 1;
     }
     const cost = ns.getPurchasedServerCost(Math.pow(2, ramExponent));
     return tryInvest(investor, 'host', cost, ns => {
+        if (servers.length >= limit)
+            deleteSingleServer(ns, servers, logger);
         const newServer = ns.purchaseServer('farm', Math.pow(2, ramExponent));
         if (!newServer || newServer.trim().length === 0)
             return 0;
