@@ -1,13 +1,16 @@
 {
   "scripts": [
     "daemon.js",
+    "grow-target.js",
+    "hack-target.js",
     "hacknet.js",
     "list.js",
     "node-path.js",
     "server-farm.js",
     "stock-broker.js",
+    "weaken-target.js",
     "weaken.js",
     "work.js"
   ],
-  "hash": "268b6152e2eb577e1a47fce703ba9db518f3e83e"
+  "hash": "1331d9dc9b95031a9a6bf2df31bc77922cf62a8c"
 }
