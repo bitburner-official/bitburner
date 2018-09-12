@@ -34,6 +34,10 @@ export const getServerRam = (server: Server) => {
   const [total, used] = server[_ns].getServerRam(server[_hostname]);
   return { total, used };
 };
+export const getFreeServerRam = (server: Server) => {
+  const [total, used] = server[_ns].getServerRam(server[_hostname]);
+  return total - used;
+};
 export const hasRootAccess = (server: Server) =>
   server[_ns].hasRootAccess(server[_hostname]);
 export const getAvailableMoney = (server: Server) =>
@@ -48,12 +52,16 @@ export const getBaseSecurityLevel = (server: Server) =>
   server[_ns].getServerBaseSecurityLevel(server[_hostname]);
 export const getMinSecurityLevel = (server: Server) =>
   server[_ns].getServerMinSecurityLevel(server[_hostname]);
+export const getWeakenTime = (server: Server) =>
+  server[_ns].getWeakenTime(server[_hostname]);
 export const getRequiredHackingLevel = (server: Server) =>
   server[_ns].getServerRequiredHackingLevel(server[_hostname]);
 export const getRequiredPortCount = (server: Server) =>
   server[_ns].getServerNumPortsRequired(server[_hostname]);
 export const fileExists = (server: Server, fileName: string) =>
   server[_ns].fileExists(fileName, server[_hostname]);
+export const runningProcesses = (server: Server) =>
+  server[_ns].ps(server[_hostname]);
 
 export const getHackStatus = (server: Server) => {
   if (hasRootAccess(server)) return HackStatus.Hacked;
