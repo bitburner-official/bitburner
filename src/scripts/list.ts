@@ -1,5 +1,6 @@
 import {
   HackStatus,
+  Server,
   getAvailableMoney,
   getHackStatus,
   getHostname,
@@ -11,6 +12,14 @@ import { flattenNetwork, scanNetwork } from '../utils/network';
 import { BitBurner as NS } from 'bitburner';
 import { createTerminalLogger } from '../utils/print';
 import { parseArgs } from '../utils/argparse';
+
+const lt = `<`;
+const gt = `>`;
+const slash = `/`;
+const getServerLink = (server: Server) =>
+  `${lt}a class="scan-analyze-link"${gt}${getHostname(
+    server,
+  )}${lt}${slash}a${gt}`;
 
 export const main = (ns: NS) => {
   const args = parseArgs(ns, {
@@ -59,9 +68,9 @@ export const main = (ns: NS) => {
     terminal`=== Hacked ===`;
     for (const { server } of hacked) {
       if (moneyOnly) {
-        terminal`${getHostname(server)}: \$${getAvailableMoney(server)}`;
+        terminal`${getServerLink(server)}: \$${getAvailableMoney(server)}`;
       } else {
-        terminal`${getHostname(server)}`;
+        terminal`${getServerLink(server)}`;
       }
     }
   }
@@ -74,7 +83,7 @@ export const main = (ns: NS) => {
     output = true;
     terminal`=== Needs level ===`;
     for (const { server } of needsLevel) {
-      terminal`${getHostname(server)}: Needs level ${getRequiredHackingLevel(
+      terminal`${getServerLink(server)}: Needs level ${getRequiredHackingLevel(
         server,
       )}`;
     }
@@ -88,7 +97,7 @@ export const main = (ns: NS) => {
     output = true;
     terminal`=== Needs ports ===`;
     for (const { server } of needsPorts) {
-      terminal`${getHostname(server)}: Needs ports ${getRequiredPortCount(
+      terminal`${getServerLink(server)}: Needs ports ${getRequiredPortCount(
         server,
       )}`;
     }
