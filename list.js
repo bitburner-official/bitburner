@@ -414,10 +414,7 @@ const parseArgs = (ns, opts = {}) => {
     return argv;
 };
 
-const lt = `<`;
-const gt = `>`;
-const slash = `/`;
-const getServerLink = (server) => `${lt}a class="scan-analyze-link"${gt}${getHostname(server)}${lt}${slash}a${gt}`;
+const getServerDisplay = (server) => `${getHostname(server)}`;
 const main = (ns) => {
     const args = parseArgs(ns, {
         boolean: ['hacked', 'no-summary', 'money'],
@@ -456,10 +453,10 @@ const main = (ns) => {
         terminal `=== Hacked ===`;
         for (const { server } of hacked) {
             if (moneyOnly) {
-                terminal `${getServerLink(server)}: \$${getAvailableMoney(server)}`;
+                terminal `${getServerDisplay(server)}: \$${getAvailableMoney(server)}`;
             }
             else {
-                terminal `${getServerLink(server)}`;
+                terminal `${getServerDisplay(server)}`;
             }
         }
     }
@@ -470,7 +467,7 @@ const main = (ns) => {
         output = true;
         terminal `=== Needs level ===`;
         for (const { server } of needsLevel) {
-            terminal `${getServerLink(server)}: Needs level ${getRequiredHackingLevel(server)}`;
+            terminal `${getServerDisplay(server)}: Needs level ${getRequiredHackingLevel(server)}`;
         }
     }
     if (needsPorts.length > 0) {
@@ -480,7 +477,7 @@ const main = (ns) => {
         output = true;
         terminal `=== Needs ports ===`;
         for (const { server } of needsPorts) {
-            terminal `${getServerLink(server)}: Needs ports ${getRequiredPortCount(server)}`;
+            terminal `${getServerDisplay(server)}: Needs ports ${getRequiredPortCount(server)}`;
         }
     }
     if (!noSummary) {
