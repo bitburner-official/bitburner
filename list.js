@@ -451,7 +451,12 @@ const main = (ns) => {
         output = true;
         terminal `=== Hacked ===`;
         for (const { server } of hacked) {
-            terminal `${getHostname(server)}`;
+            if (moneyOnly) {
+                terminal `${getHostname(server)}: \$${getAvailableMoney(server)}`;
+            }
+            else {
+                terminal `${getHostname(server)}`;
+            }
         }
     }
     if (needsLevel.length > 0) {
