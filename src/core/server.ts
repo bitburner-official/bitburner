@@ -62,6 +62,9 @@ export const fileExists = (server: Server, fileName: string) =>
   server[_ns].fileExists(fileName, server[_hostname]);
 export const runningProcesses = (server: Server) =>
   server[_ns].ps(server[_hostname]);
+export const isPlayerOwned = (server: Server) =>
+  server[_hostname] === 'home' ||
+  server[_ns].getPurchasedServers().includes(server[_hostname]);
 
 export const getHackStatus = (server: Server) => {
   if (hasRootAccess(server)) return HackStatus.Hacked;

@@ -6,6 +6,7 @@ import {
   getHostname,
   getRequiredHackingLevel,
   getRequiredPortCount,
+  isPlayerOwned,
 } from '../core/server';
 import { flattenNetwork, scanNetwork } from '../utils/network';
 
@@ -17,15 +18,17 @@ const getServerDisplay = (server: Server) => `${getHostname(server)}`;
 
 export const main = (ns: NS) => {
   const args = parseArgs(ns, {
-    boolean: ['hacked', 'no-summary', 'money'],
+    boolean: ['hacked', 'no-summary', 'money', 'include-owned'],
     alias: {
       hacked: 'h',
       money: 'm',
+      'include-owned': 'o',
       'no-summary': 'n',
     },
     default: {
       hacked: false,
       money: false,
+      'include-owned': false,
       'no-summary': false,
     },
   });
@@ -33,12 +36,17 @@ export const main = (ns: NS) => {
   const hackedOnly: boolean = args.h;
   const moneyOnly: boolean = args.m;
   const noSummary: boolean = args.n;
+  const includeOwned: boolean = args.o;
   const terminal = createTerminalLogger(ns);
   const network = scanNetwork(ns);
   let flattened = flattenNetwork(network).map(node => ({
     server: node.server,
     status: getHackStatus(node.server),
   }));
+
+  if (includeOwned) {
+    flattened = flattened.filter(({ server }) => !isPlayerOwned(server));
+  }
 
   if (hackedOnly) {
     flattened = flattened.filter(({ status }) => status === HackStatus.Hacked);
@@ -108,10 +116,9 @@ export const main = (ns: NS) => {
     terminal`Needs level: ${needsLevel.length}`;
     terminal`Needs ports: ${needsPorts.length}`;
     if (moneyOnly) {
-      const money = hacked.reduce(
-        (num, { server }) => num + getAvailableMoney(server),
-        0,
-      );
+      const money = hacked
+        .filter(({ server }) => !isPlayerOwned(server))
+        .reduce((num, { server }) => num + getAvailableMoney(server), 0);
 
       terminal`Total available money: \$${money}`;
     }
