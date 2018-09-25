@@ -25,6 +25,8 @@ const hasRootAccess = (server) => server[_ns].hasRootAccess(server[_hostname]);
 const getAvailableMoney = (server) => server[_ns].getServerMoneyAvailable(server[_hostname]);
 const getRequiredHackingLevel = (server) => server[_ns].getServerRequiredHackingLevel(server[_hostname]);
 const getRequiredPortCount = (server) => server[_ns].getServerNumPortsRequired(server[_hostname]);
+const isPlayerOwned = (server) => server[_hostname] === 'home' ||
+    server[_ns].getPurchasedServers().includes(server[_hostname]);
 const getHackStatus = (server) => {
     if (hasRootAccess(server))
         return HackStatus.Hacked;
@@ -417,27 +419,33 @@ const parseArgs = (ns, opts = {}) => {
 const getServerDisplay = (server) => `${getHostname(server)}`;
 const main = (ns) => {
     const args = parseArgs(ns, {
-        boolean: ['hacked', 'no-summary', 'money'],
+        boolean: ['hacked', 'no-summary', 'money', 'include-owned'],
         alias: {
             hacked: 'h',
             money: 'm',
+            'include-owned': 'o',
             'no-summary': 'n',
         },
         default: {
             hacked: false,
             money: false,
+            'include-owned': false,
             'no-summary': false,
         },
     });
     const hackedOnly = args.h;
     const moneyOnly = args.m;
     const noSummary = args.n;
+    const includeOwned = args.o;
     const terminal = createTerminalLogger(ns);
     const network = scanNetwork(ns);
     let flattened = flattenNetwork(network).map(node => ({
         server: node.server,
         status: getHackStatus(node.server),
     }));
+    if (includeOwned) {
+        flattened = flattened.filter(({ server }) => !isPlayerOwned(server));
+    }
     if (hackedOnly) {
         flattened = flattened.filter(({ status }) => status === HackStatus.Hacked);
     }
@@ -490,7 +498,9 @@ const main = (ns) => {
         terminal `Needs level: ${needsLevel.length}`;
         terminal `Needs ports: ${needsPorts.length}`;
         if (moneyOnly) {
-            const money = hacked.reduce((num, { server }) => num + getAvailableMoney(server), 0);
+            const money = hacked
+                .filter(({ server }) => !isPlayerOwned(server))
+                .reduce((num, { server }) => num + getAvailableMoney(server), 0);
             terminal `Total available money: \$${money}`;
         }
     }
