@@ -113,5 +113,13 @@ export const main = (ns: NS) => {
     terminal`Hacked: ${hacked.length}`;
     terminal`Needs level: ${needsLevel.length}`;
     terminal`Needs ports: ${needsPorts.length}`;
+    if (moneyOnly) {
+      const money = hacked.reduce(
+        (num, { server }) => num + getAvailableMoney(server),
+        0,
+      );
+
+      terminal`Total available money: \$${money}`;
+    }
   }
 };
