@@ -23,6 +23,9 @@ class Server {
 const getHostname = (server) => server[_hostname];
 const hasRootAccess = (server) => server[_ns].hasRootAccess(server[_hostname]);
 const getAvailableMoney = (server) => server[_ns].getServerMoneyAvailable(server[_hostname]);
+const getMaxMoney = (server) => server[_ns].getServerMaxMoney(server[_hostname]);
+const getSecurityLevel = (server) => server[_ns].getServerSecurityLevel(server[_hostname]);
+const getMinSecurityLevel = (server) => server[_ns].getServerMinSecurityLevel(server[_hostname]);
 const getRequiredHackingLevel = (server) => server[_ns].getServerRequiredHackingLevel(server[_hostname]);
 const getRequiredPortCount = (server) => server[_ns].getServerNumPortsRequired(server[_hostname]);
 const isPlayerOwned = (server) => server[_hostname] === 'home' ||
@@ -427,6 +430,18 @@ const parseArgs = (ns, opts = {}) => {
 };
 
 const getServerDisplay = (server) => `${getHostname(server)}`;
+const getMoneyDisplay = (server) => {
+    const money = getAvailableMoney(server);
+    const maxMoney = getMaxMoney(server);
+    const sec = getSecurityLevel(server);
+    const minSec = getMinSecurityLevel(server);
+    return `${money.toLocaleString('en-us', {
+        style: 'currency',
+        currency: 'USD',
+    })} (${(money / maxMoney).toLocaleString('en-us', {
+        style: 'percent',
+    })}) ${sec} SEC/${minSec} MIN`;
+};
 const main = (ns) => {
     const args = parseArgs(ns, {
         boolean: ['hacked', 'no-summary', 'money', 'include-owned'],
@@ -471,7 +486,7 @@ const main = (ns) => {
         terminal `=== Hacked ===`;
         for (const { server } of hacked) {
             if (moneyOnly) {
-                terminal `${getServerDisplay(server)}: \$${getAvailableMoney(server)}`;
+                terminal `${getServerDisplay(server)}: \$${getMoneyDisplay(server)}`;
             }
             else {
                 terminal `${getServerDisplay(server)}`;
