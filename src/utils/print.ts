@@ -20,7 +20,7 @@ const arg = (v: any) => {
   if (v === null) return '<null>';
   const formatter = getFormatter(v);
   if (formatter) return formatter(v);
-  if (typeof v.toLocaleString === 'function') return v.toLocaleString();
+  if (typeof v.toLocaleString === 'function') return v.toLocaleString('en-us');
   return String(v);
 };
 
