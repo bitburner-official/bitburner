@@ -1,13 +1,12 @@
-const delayedSingle = (fn) => {
+const serverFarmTool = (fn) => {
     // hide the async function
-    const delayed = async (ns) => {
-        const [host, time] = ns.args;
-        await ns.sleep(parseInt(time, 10) - Date.now());
+    const tool = async (ns) => {
+        const [host] = ns.args;
         await fn(ns, host);
     };
-    return (ns) => delayed(ns);
+    return (ns) => tool(ns);
 };
 
-const main = delayedSingle((ns, host) => ns.weaken(host));
+const main = serverFarmTool((ns, host) => ns.weaken(host));
 
 export { main };

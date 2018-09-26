@@ -1,9 +1,98 @@
+const _update = Symbol('state:update');
+const _reset = Symbol('state:reset');
+const state = (ns, defaultState, owner = ns.getScriptName()) => {
+    const name = owner + '.state.json.txt';
+    const writeState = (state) => {
+        const json = JSON.stringify(state, null, 2);
+        ns.write(name, json, 'w');
+    };
+    const readState = () => {
+        if (!ns.fileExists(name)) {
+            writeState(defaultState);
+        }
+        let json = ns.read(name);
+        if (!json || json.trim().length === 0) {
+            writeState(defaultState);
+            json = ns.read(name);
+        }
+        let data;
+        try {
+            data = JSON.parse(json);
+        }
+        catch (_a) {
+            writeState(defaultState);
+            data = JSON.parse(JSON.stringify(defaultState));
+        }
+        return data;
+    };
+    const updateState = (fn) => {
+        const state = readState();
+        const ret = fn(state);
+        writeState(state);
+        return ret;
+    };
+    const resetState = () => {
+        writeState(defaultState);
+    };
+    const mkProxy = (basePath, base) => new Proxy(base, {
+        get(_, property) {
+            if (property === _update) {
+                return updateState;
+            }
+            if (property === _reset) {
+                return resetState;
+            }
+            const path = [...basePath, property];
+            let data = readState();
+            for (const part of path) {
+                if (data.hasOwnProperty(part)) {
+                    data = data[part];
+                }
+                else {
+                    throw new Error(`Object has no property '${part}' (part of '${path.join('.')}')`);
+                }
+            }
+            if (data === null ||
+                typeof data === 'undefined' ||
+                typeof data === 'number' ||
+                typeof data === 'string' ||
+                typeof data === 'boolean')
+                return data;
+            return mkProxy(path, Array.isArray(data) ? [] : {});
+        },
+        set(_, property, value) {
+            if (typeof property === 'symbol') {
+                return false;
+            }
+            const path = [...basePath];
+            let data = readState();
+            for (const part of path) {
+                if (data.hasOwnProperty(part)) {
+                    data = data[part];
+                }
+                else {
+                    throw new Error(`Object has no property '${part}' (part of '${path.join('.')}')`);
+                }
+            }
+            if (data && typeof data === 'object') {
+                data[property] = value;
+                return true;
+            }
+            return false;
+        },
+    });
+    return mkProxy([], {});
+};
+const update = (updatable, fn) => updatable[_update](fn);
+
 const getPlayerMoney = (ns) => ns.getServerMoneyAvailable('home');
 
-const LEDGER_FILE = 'ledger.json';
+const LEDGER_STATE_OWNER = 'ledger';
 const _ns = Symbol('ns');
 const _name = Symbol('investor:name');
 const _conf = Symbol('investor:conf');
+const _state = Symbol('investor:state');
+const getState = (ns) => state(ns, {}, LEDGER_STATE_OWNER);
 class Investor {
     constructor(ns, name, budget /* percentage (0,100] */) {
         const host = ns.getHostname();
@@ -13,32 +102,23 @@ class Investor {
         this[_ns] = ns;
         this[_name] = name;
         this[_conf] = { budget };
+        this[_state] = getState(ns);
         Object.freeze(this);
     }
 }
-const incr = (n, m) => typeof n === 'undefined' ? m : n + m;
-const readLedger = (investor) => {
-    const text = investor[_ns].read(LEDGER_FILE);
-    if (text.trim().length === 0) {
-        return {};
-    }
-    return JSON.parse(text);
-};
-const getInvestments = (investor) => readLedger(investor)[investor[_name]] || {
+const defaultEntry = () => ({
     totalInvested: 0,
     investments: {},
-};
-const updateLedger = (investor, investments) => {
-    const ledger = readLedger(investor);
-    ledger[investor[_name]] = investments;
-    investor[_ns].write(LEDGER_FILE, JSON.stringify(ledger, null, 2), 'w');
-};
+});
+const incr = (n, m) => typeof n === 'undefined' ? m : n + m;
+const getInvestments = (investor) => investor[_state][investor[_name]] || defaultEntry();
 const getBudget = (investor, name = null) => {
     const investments = getInvestments(investor);
     const money = getPlayerMoney(investor[_ns]);
     const { budget } = investor[_conf];
-    const allowedUse = Math.floor((money * budget) / 100);
     const totalInvested = Math.floor(investments.totalInvested);
+    const totalAssets = totalInvested + money;
+    const allowedUse = Math.floor((totalAssets * budget) / 100) - totalInvested;
     const moneyLeft = Math.min(Math.floor(allowedUse - totalInvested), money);
     return {
         totalMoney: money,
@@ -63,10 +143,12 @@ const tryInvest = (investor, name, price, action) => {
     const used = action(investor[_ns]);
     if (used <= 0)
         return false;
-    investments.totalInvested += used;
-    investments.investments[name] = incr(investments.investments[name], used);
-    updateLedger(investor, investments);
-    return true;
+    return update(investor[_state], ledger => {
+        const investments = ledger[investor[_name]] || defaultEntry();
+        investments.totalInvested += used;
+        investments.investments[name] = incr(investments.investments[name], used);
+        return true;
+    });
 };
 
 const _ns$1 = Symbol('ns');
@@ -145,7 +227,7 @@ const main = async (ns) => {
     ns.disableLog('getServerMoneyAvailable');
     ns.disableLog('sleep');
     const log = createLogger(ns);
-    const investor = new Investor(ns, 'hacknet', 100);
+    const investor = new Investor(ns, 'hacknet', 40);
     const nextAction = () => {
         const nodePrice = getNodePurchaseCost(ns);
         let action = {

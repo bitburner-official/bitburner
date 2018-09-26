@@ -41,8 +41,96 @@ const prettifyString = (literals, ...placeholders) => {
 const maybeStr = (prefix) => typeof prefix === 'string' ? prefix : '';
 const createLogger = (ns, prefix) => (literals, ...placeholders) => ns.print(maybeStr(prefix) + prettifyString(literals, ...placeholders));
 
-const LEDGER_FILE = 'ledger.json';
-const resetInvestments = (ns) => ns.rm(LEDGER_FILE);
+const _update = Symbol('state:update');
+const _reset = Symbol('state:reset');
+const state = (ns, defaultState, owner = ns.getScriptName()) => {
+    const name = owner + '.state.json.txt';
+    const writeState = (state) => {
+        const json = JSON.stringify(state, null, 2);
+        ns.write(name, json, 'w');
+    };
+    const readState = () => {
+        if (!ns.fileExists(name)) {
+            writeState(defaultState);
+        }
+        let json = ns.read(name);
+        if (!json || json.trim().length === 0) {
+            writeState(defaultState);
+            json = ns.read(name);
+        }
+        let data;
+        try {
+            data = JSON.parse(json);
+        }
+        catch (_a) {
+            writeState(defaultState);
+            data = JSON.parse(JSON.stringify(defaultState));
+        }
+        return data;
+    };
+    const updateState = (fn) => {
+        const state = readState();
+        const ret = fn(state);
+        writeState(state);
+        return ret;
+    };
+    const resetState = () => {
+        writeState(defaultState);
+    };
+    const mkProxy = (basePath, base) => new Proxy(base, {
+        get(_, property) {
+            if (property === _update) {
+                return updateState;
+            }
+            if (property === _reset) {
+                return resetState;
+            }
+            const path = [...basePath, property];
+            let data = readState();
+            for (const part of path) {
+                if (data.hasOwnProperty(part)) {
+                    data = data[part];
+                }
+                else {
+                    throw new Error(`Object has no property '${part}' (part of '${path.join('.')}')`);
+                }
+            }
+            if (data === null ||
+                typeof data === 'undefined' ||
+                typeof data === 'number' ||
+                typeof data === 'string' ||
+                typeof data === 'boolean')
+                return data;
+            return mkProxy(path, Array.isArray(data) ? [] : {});
+        },
+        set(_, property, value) {
+            if (typeof property === 'symbol') {
+                return false;
+            }
+            const path = [...basePath];
+            let data = readState();
+            for (const part of path) {
+                if (data.hasOwnProperty(part)) {
+                    data = data[part];
+                }
+                else {
+                    throw new Error(`Object has no property '${part}' (part of '${path.join('.')}')`);
+                }
+            }
+            if (data && typeof data === 'object') {
+                data[property] = value;
+                return true;
+            }
+            return false;
+        },
+    });
+    return mkProxy([], {});
+};
+const reset = (updatable) => updatable[_reset]();
+
+const LEDGER_STATE_OWNER = 'ledger';
+const getState = (ns) => state(ns, {}, LEDGER_STATE_OWNER);
+const resetInvestments = (ns) => reset(getState(ns));
 
 // --- CONSTANTS ---
 // server and script to run weaken on ad absurdum
@@ -101,7 +189,7 @@ const main = async (ns) => {
         await ns.exec('hacknet.js', 'home');
     }
     if (await ns.prompt(`Enable server farm?`)) {
-        await ns.exec('server-farm.js', 'home');
+        await ns.exec('server-farm.js', 'home', 1, String(Date.now()));
     }
     if (await ns.prompt(`Enable stock broker`)) {
         // start stock-broker

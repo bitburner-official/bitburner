@@ -443,7 +443,7 @@ const main = (ns) => {
         server: node.server,
         status: getHackStatus(node.server),
     }));
-    if (includeOwned) {
+    if (!includeOwned) {
         flattened = flattened.filter(({ server }) => !isPlayerOwned(server));
     }
     if (hackedOnly) {
