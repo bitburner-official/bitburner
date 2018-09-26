@@ -33,7 +33,7 @@ const getMoneyDisplay = (server: Server) => {
 
 export const main = (ns: NS) => {
   const args = parseArgs(ns, {
-    boolean: ['hacked', 'no-summary', 'money', 'include-owned'],
+    boolean: ['hacked', 'no-summary', 'money', 'include-owned', 'help'],
     alias: {
       hacked: 'h',
       money: 'm',
@@ -48,6 +48,7 @@ export const main = (ns: NS) => {
     },
   });
 
+  const help: boolean = args.help;
   const hackedOnly: boolean = args.h;
   const moneyOnly: boolean = args.m;
   const noSummary: boolean = args.n;
@@ -58,6 +59,16 @@ export const main = (ns: NS) => {
     server: node.server,
     status: getHackStatus(node.server),
   }));
+
+  if (help) {
+    terminal`=== LIST ===`;
+    terminal`h|hacked          only hacked nodes`;
+    terminal`m|money           show server money and security for hacked nodes`;
+    terminal`o|include-owned   include owned servers (home and purchased servers) in output`;
+    terminal`n|no-summary      don't print summary`;
+    terminal`help              print this help`;
+    return;
+  }
 
   if (!includeOwned) {
     flattened = flattened.filter(({ server }) => !isPlayerOwned(server));
