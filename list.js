@@ -486,7 +486,7 @@ const main = (ns) => {
         terminal `=== Hacked ===`;
         for (const { server } of hacked) {
             if (moneyOnly) {
-                terminal `${getServerDisplay(server)}: \$${getMoneyDisplay(server)}`;
+                terminal `${getServerDisplay(server)}: ${getMoneyDisplay(server)}`;
             }
             else {
                 terminal `${getServerDisplay(server)}`;
