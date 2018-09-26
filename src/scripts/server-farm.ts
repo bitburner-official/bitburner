@@ -93,15 +93,6 @@ let bitnodeWeakenMult: number = 1;
 
 const actualWeakenPotency = () => bitnodeWeakenMult * WEAKEN_THREAD_POTENCY;
 
-const getMaxThreads = (tool: Tool, workers: ReadonlyArray<Server>) => {
-  const workerServers = orderBy(workers, getFreeServerRam, false);
-  for (const worker of workerServers) {
-    return Math.floor(getFreeServerRam(worker) / toolCost(tool));
-  }
-
-  return 0;
-};
-
 type ServerInfo = {
   readonly maxMoney: number;
   readonly growthRate: number;
@@ -123,8 +114,7 @@ const getInfo = (server: Server): ServerInfo | null => {
   const currentSec = getSecurityLevel(server);
 
   const rank = (maxMoney * growthRate) / (weakenTime * baseSec);
-  const currentRank =
-    currentSec < minSec * 1.1 ? rank * (minSec * 1.1 - currentSec + 1) : rank;
+  const currentRank = currentSec <= minSec ? rank * (100 - minSec) : rank;
 
   return {
     maxMoney,
