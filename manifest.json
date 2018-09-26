@@ -10,19 +10,8 @@
     "stock-broker.js",
     "weaken-target.js",
     "weaken.js",
-    "work.js",
-    "daemon.js",
-    "grow-target.js",
-    "hack-target.js",
-    "hacknet.js",
-    "list.js",
-    "node-path.js",
-    "server-farm.js",
-    "stock-broker.js",
-    "weaken-target.js",
-    "weaken.js",
     "work.js"
   ],
-  "hash": "1b1e24361748911b4ea83b218218c1475fc62bda",
-  "date": 1537979127394
+  "hash": "81fd42a5ba2c35249973041873b2eb5ff84d1c98",
+  "date": 1537980319636
 }

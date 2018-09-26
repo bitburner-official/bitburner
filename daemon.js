@@ -88,11 +88,11 @@ const state = (ns, defaultState, owner = ns.getScriptName()) => {
             const path = [...basePath, property];
             let data = readState();
             for (const part of path) {
-                if (data.hasOwnProperty(part)) {
+                if (data && data.hasOwnProperty(part)) {
                     data = data[part];
                 }
                 else {
-                    throw new Error(`Object has no property '${part}' (part of '${path.join('.')}')`);
+                    data = void 0;
                 }
             }
             if (data === null ||
