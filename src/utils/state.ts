@@ -67,14 +67,12 @@ const state = <T extends {}>(
         }
 
         const path = [...basePath, property];
-        let data: object = readState();
+        let data: any = readState();
         for (const part of path) {
-          if (data.hasOwnProperty(part)) {
+          if (data && data.hasOwnProperty(part)) {
             data = (data as any)[part];
           } else {
-            throw new Error(
-              `Object has no property '${part}' (part of '${path.join('.')}')`,
-            );
+            data = void 0;
           }
         }
 

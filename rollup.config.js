@@ -29,7 +29,7 @@ const appendToManifest = async (scripts, hash) => {
   } catch (e) {}
 
   manifest.date = Date.now();
-  manifest.scripts.push(...scripts);
+  manifest.scripts = [...new Set([...manifest.scripts, ...scripts])];
   await promisify(fs.writeFile)(
     manifestFile,
     JSON.stringify(manifest, null, 2),
