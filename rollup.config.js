@@ -14,14 +14,24 @@ const getCurrentHash = async () => {
 };
 
 const _generateBundle = async (ctx, outputOptions, bundle, isWrite) => {
+  const scripts = Object.keys(bundle).filter(n => !n.includes('chunk'));
   bundle[`manifest.json`] = JSON.stringify(
     {
-      scripts: Object.keys(bundle).filter(n => !n.includes('chunk')),
+      scripts,
       hash: await getCurrentHash(),
     },
     null,
     2,
   );
+
+  bundle[`wget.txt`] = scripts
+    .map(
+      fpath =>
+        `wget https://alxandr.github.io/bitburner/${fpath} ${path.basename(
+          fpath,
+        )}\n`,
+    )
+    .join('');
 };
 
 const customPlugin = () => ({

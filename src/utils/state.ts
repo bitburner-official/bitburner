@@ -13,7 +13,7 @@ const state = <T extends {}>(
   defaultState: T,
   owner: string = ns.getScriptName(),
 ): Updatable<T> => {
-  const name = owner + '.state.json';
+  const name = owner + '.state.json.txt';
   const writeState = (state: T) => {
     const json = JSON.stringify(state, null, 2);
     ns.write(name, json, 'w');
