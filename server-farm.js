@@ -363,6 +363,8 @@ const WEAKEN_THREAD_POTENCY = 0.05;
 const UNAJUSTED_GROWTH_RATE = 1.03;
 // max server growth rate, growth rates higher than this are throttled.
 const MAX_GROWTH_RATE = 1.0035;
+// the max number of batches this daemon will spool up to avoid running out of IRL ram
+const MIN_WORKER_RAM = 16;
 // minimum and maximum ram exponents to purchase servers with.
 const MIN_RAM_EXPONENT = 4; // 16GB
 const MAX_RAM_EXPONENT = 20; // 2^20 GB
@@ -495,38 +497,41 @@ const cyclesNeededForGrowthCoefficient = (target) => Math.log(targetGrowthCoeffi
     Math.log(adjustedGrowthRate(target));
 const getGrowThreadsNeeded = (target) => Math.ceil(cyclesNeededForGrowthCoefficient(target) / serverGrowthPercentage(target));
 const getWeakenThreadsNeeded = (target) => Math.ceil((getSecurityLevel(target.server) - target.minSec) / actualWeakenPotency());
-const weaken = async (target, workers) => {
+const weaken = async (target, workers, logger) => {
     const neededThreads = getWeakenThreadsNeeded(target);
     const minServer = findLast(workers, server => maxThreads(weakenTool, server) >= neededThreads);
     const threads = Math.min(maxThreads(weakenTool, minServer), neededThreads);
+    logger `Weaken ${target.server} with ${threads} threads`;
     await runTool(weakenTool, minServer, threads, [
         getHostname(target.server),
         ORIGIN_ARG,
     ]);
     const freeRam = getFreeServerRam(minServer);
-    if (freeRam > 5) {
+    if (freeRam > MIN_WORKER_RAM) {
         return orderBy(workers, getFreeServerRam, false);
     }
     return without(workers, minServer);
 };
-const grow = async (target, workers) => {
+const grow = async (target, workers, logger) => {
     const neededThreads = getGrowThreadsNeeded(target);
     const minServer = findLast(workers, server => maxThreads(growTool, server) >= neededThreads);
     const threads = Math.min(maxThreads(growTool, minServer), neededThreads);
+    logger `Grow ${target.server} with ${threads} threads`;
     await runTool(growTool, minServer, threads, [
         getHostname(target.server),
         ORIGIN_ARG,
     ]);
     const freeRam = getFreeServerRam(minServer);
-    if (freeRam > 5) {
+    if (freeRam > MIN_WORKER_RAM) {
         return orderBy(workers, getFreeServerRam, false);
     }
     return without(workers, minServer);
 };
-const hack = async (target, workers) => {
+const hack = async (target, workers, logger) => {
     // TODO: Calculate best hacking thread count
     const [worker, ...rest] = workers;
     const threads = maxThreads(hackTool, worker);
+    logger `Hack ${target.server} with ${threads} threads`;
     await runTool(hackTool, worker, threads, [
         getHostname(target.server),
         ORIGIN_ARG,
@@ -541,22 +546,22 @@ const scheduleServers = async (ns, logger, state$$1, workers, targets) => {
     const [target, ...restTargets] = targets;
     const sec = getSecurityLevel(target.server);
     if (sec > target.minSec) {
-        const restWorkers = await weaken(target, workers);
+        const restWorkers = await weaken(target, workers, logger);
         return await scheduleServers(ns, logger, state$$1, restWorkers, restTargets);
     }
     const money = getAvailableMoney(target.server);
     if (money < target.maxMoney) {
-        const restWorkers = await grow(target, workers);
+        const restWorkers = await grow(target, workers, logger);
         return await scheduleServers(ns, logger, state$$1, restWorkers, restTargets);
     }
-    const restWorkers = await hack(target, workers);
+    const restWorkers = await hack(target, workers, logger);
     return await scheduleServers(ns, logger, state$$1, restWorkers, restTargets);
 };
 const startWork = async (ns, logger, state$$1) => {
-    const workerServers = orderBy(getWorkerServers(ns), getFreeServerRam, false).filter(s => getFreeServerRam(s) > 5);
+    const workerServers = orderBy(getWorkerServers(ns), getFreeServerRam, false).filter(s => getFreeServerRam(s) > MIN_WORKER_RAM);
     const existingTargets = new Set(workerServers
         .reduce((procs, s) => [...procs, ...runningProcesses(s)], [])
-        .filter(p => p.args.includes(ORIGIN_ARG))
+        .filter(p => p.args.includes(ORIGIN_ARG, 1))
         .map(p => p.args[0]));
     const untargeted = (s) => !existingTargets.has(getHostname(s));
     const targetServers = orderBy(getTargetServers(ns)
