@@ -3,7 +3,7 @@ import { BitBurner as NS } from 'bitburner';
 const _update = Symbol('state:update');
 const _reset = Symbol('state:reset');
 
-type Updatable<T> = T & {
+export type Updatable<T> = T & {
   [_update]: <R>(fn: (state: T) => R) => R;
   [_reset]: () => void;
 };
@@ -121,5 +121,7 @@ const state = <T extends {}>(
 
 export const update = <T, R>(updatable: Updatable<T>, fn: (state: T) => R) =>
   updatable[_update](fn);
+
+export const reset = (updatable: Updatable<unknown>) => updatable[_reset]();
 
 export default state;

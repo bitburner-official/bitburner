@@ -7,15 +7,20 @@
   "license": "MIT",
   "private": true,
   "devDependencies": {
+    "concurrently": "^4.0.1",
     "execa": "^1.0.0",
     "glob": "^7.1.2",
     "mkdirp": "^0.5.1",
     "rollup": "^0.64.1",
+    "rollup-plugin-copy-glob": "^0.2.2",
+    "rollup-plugin-svelte": "^4.3.1",
     "rollup-plugin-terser": "^1.0.1",
     "rollup-plugin-typescript2": "^0.16.1",
+    "svelte": "^2.13.5",
     "typescript": "^3.0.1"
   },
   "scripts": {
-    "build": "rollup -c"
+    "build": "rollup -c",
+    "watch": "rollup -wc"
   }
 }

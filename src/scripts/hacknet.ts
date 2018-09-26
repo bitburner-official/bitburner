@@ -24,7 +24,7 @@ export const main = async (ns: NS) => {
   ns.disableLog('getServerMoneyAvailable');
   ns.disableLog('sleep');
   const log = createLogger(ns);
-  const investor = new Investor(ns, 'hacknet', 100);
+  const investor = new Investor(ns, 'hacknet', 40);
 
   const nextAction = () => {
     const nodePrice = getNodePurchaseCost(ns);

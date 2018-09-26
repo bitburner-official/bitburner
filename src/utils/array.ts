@@ -15,3 +15,25 @@ export const orderBy = <T>(
 
   return copy;
 };
+
+export const findLast = <T>(
+  array: ReadonlyArray<T>,
+  fn: (item: T) => boolean,
+): T => {
+  if (array.length === 0) {
+    throw new Error(`Array was empty`);
+  }
+
+  for (let i = 1; i < array.length; i++) {
+    if (!fn(array[i])) {
+      return array[i - 1];
+    }
+  }
+
+  return array[array.length - 1];
+};
+
+export const without = <T>(
+  array: ReadonlyArray<T>,
+  item: T,
+): ReadonlyArray<T> => array.filter(i => i !== item);

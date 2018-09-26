@@ -1,0 +1,54 @@
+<div class="container offset-top">
+  <div class="column">
+    <h1>Script files</h1>
+    {#await manifest}
+    <div class="row">
+      <sub class="sub">Loading...</sub>
+    </div>
+    {:then m}
+    <div class="row">
+      <sub class="sub">
+        Date: <time datetime="{new Date(m.date).toISOString()}">{new Date(m.date).toLocaleString()}</time>
+        Hash: <span>{m.hash}</span>
+      </sub>
+    </div>
+    {#each m.scripts as script}
+    <ScriptBlock script={script} />
+    {:else}
+    <div class="row">
+      <p>No scripts</p>
+    </div>
+    {/each}
+    {:catch error}
+    <div class="row">
+      <sub>Failed to load :(</sub>
+    </div>
+    {/await}
+  </div>
+</div>
+
+<style>
+  .offset-top {
+    margin-top: 25px
+  }
+
+  .sub {
+    margin-bottom: 25px;
+    display: inline-block;
+  }
+</style>
+
+<script>
+  import ScriptBlock from "./script.html";
+
+  export default {
+    tag: "bs-app",
+    components: { ScriptBlock },
+
+    data() {
+      return {
+        manifest: fetch("manifest.json").then(r => r.json())
+      };
+    }
+  };
+</script>

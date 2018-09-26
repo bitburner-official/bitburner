@@ -1,9 +1,11 @@
+import copyAssets from 'rollup-plugin-copy-glob';
 import execa from 'execa';
 import fs from 'fs';
 import glob from 'glob';
 import mkdirp from 'mkdirp';
 import path from 'path';
 import { promisify } from 'util';
+import svelte from 'rollup-plugin-svelte';
 import typescript from 'rollup-plugin-typescript2';
 
 const getCurrentHash = async () => {
@@ -13,35 +15,48 @@ const getCurrentHash = async () => {
   return `Dirty.` + hash.stdout.trim();
 };
 
-const _generateBundle = async (ctx, outputOptions, bundle, isWrite) => {
-  const scripts = Object.keys(bundle).filter(n => !n.includes('chunk'));
-  bundle[`manifest.json`] = JSON.stringify(
-    {
-      scripts,
-      hash: await getCurrentHash(),
-    },
-    null,
-    2,
-  );
+const appendToManifest = async (scripts, hash) => {
+  const manifestFile = path.resolve(__dirname, 'dist', 'manifest.json');
+  let manifest = { hash, scripts: [] };
+  try {
+    const json = await promisify(fs.readFile)(manifestFile, {
+      encoding: 'utf-8',
+    });
+    const fromFile = JSON.parse(json);
+    if (fromFile.hash === hash) {
+      manifest = fromFile;
+    }
+  } catch (e) {}
 
-  bundle[`wget.txt`] = scripts
-    .map(
-      fpath =>
-        `wget https://alxandr.github.io/bitburner/${fpath} ${path.basename(
-          fpath,
-        )}\n`,
-    )
-    .join('');
+  manifest.date = Date.now();
+  manifest.scripts.push(...scripts);
+  await promisify(fs.writeFile)(
+    manifestFile,
+    JSON.stringify(manifest, null, 2),
+    'utf-8',
+  );
 };
 
-const customPlugin = () => ({
+const _generateBundle = async (
+  ctx,
+  outputOptions,
+  bundle,
+  isWrite,
+  currentHash,
+) => {
+  const scripts = Object.keys(bundle).filter(n => !n.includes('chunk'));
+  await appendToManifest(scripts, currentHash);
+};
+
+const customPlugin = currentHash => ({
   name: 'manifest',
   generateBundle(outputOptions, bundle, isWrite) {
-    return _generateBundle(this, outputOptions, bundle, isWrite);
+    return _generateBundle(this, outputOptions, bundle, isWrite, currentHash);
   },
 });
 
 const conf = async () => {
+  const currentHash = await getCurrentHash();
   const scripts = await promisify(glob)('./src/scripts/*.ts');
   await mkdirp('dist');
   await promisify(fs.writeFile)(
@@ -56,31 +71,61 @@ const conf = async () => {
     ),
     'utf-8',
   );
-  // const plugins = [typescript(), customPlugin()];
-  // const output = {
-  //   format: 'es',
-  //   dir: 'dist',
-  //   chunkFileNames: `[name].[hash].js`,
-  // };
-  // const input = scripts;
-  // return {
-  //   input,
-  //   output,
-  //   plugins,
-  //   experimentalCodeSplitting: true,
-  //   optimizeChunks: true,
-  //   chunkGroupingSize: Number.MAX_SAFE_INTEGER,
-  // };
-  return scripts.map(scriptPath => {
-    const input = scriptPath;
-    const output = {
-      file: path.join('dist', path.basename(scriptPath, '.ts') + '.js'),
-      format: 'es',
-    };
 
-    const plugins = [typescript()];
-    return { input, output, plugins };
-  });
+  return [
+    ...scripts.map(scriptPath => {
+      const input = scriptPath;
+      const output = {
+        file: path.resolve(
+          __dirname,
+          'dist',
+          path.basename(scriptPath, '.ts') + '.js',
+        ),
+        format: 'es',
+      };
+
+      const plugins = [typescript(), customPlugin(currentHash)];
+      return { input, output, plugins };
+    }),
+
+    {
+      input: path.resolve(__dirname, 'src', 'site', 'index.js'),
+      output: {
+        file: path.resolve(__dirname, 'dist', 'site.js'),
+        format: 'iife',
+        name: 'site',
+      },
+      plugins: [
+        typescript(),
+        svelte({
+          dev: true,
+          customelement: true,
+
+          // Emit CSS as "files" for other plugins to process
+          // emitCss: true,
+
+          // Extract CSS into a separate file.
+          css: function(css) {
+            // creates `main.css` and `main.css.map` — pass `false`
+            // as the second argument if you don't want the sourcemap
+            css.write('dist/css/site.css');
+          },
+        }),
+        copyAssets(
+          [
+            {
+              files: path.resolve(__dirname, 'public', '**', '*'),
+              dest: 'dist',
+            },
+          ],
+          {
+            watch: false,
+            verbose: true,
+          },
+        ),
+      ],
+    },
+  ];
 };
 
 export default conf();

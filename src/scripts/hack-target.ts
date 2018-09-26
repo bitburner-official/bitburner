@@ -1,3 +1,3 @@
-import delayedSingle from '../utils/delayed-single';
+import serverFarmTool from '../utils/server-farm-tool';
 
-export const main = delayedSingle((ns, host) => ns.hack(host));
+export const main = serverFarmTool((ns, host) => ns.hack(host));

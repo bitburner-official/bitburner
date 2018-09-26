@@ -16,13 +16,13 @@ import {
   hasRootAccess,
   runningProcesses,
 } from '../core/server';
-import { Host, BitBurner as NS, Script } from 'bitburner';
 import { Investor, getBudget, tryInvest } from '../utils/investor';
 import { Logger, createLogger, createTerminalLogger } from '../utils/print';
+import { BitBurner as NS, ProcessInfo, Script } from 'bitburner';
+import { Tool, maxThreads, runTool, toolCost } from '../core/tool';
+import { findLast, orderBy, without } from '../utils/array';
 import { flattenNetwork, scanNetwork } from '../utils/network';
-
-import mkState from '../utils/state';
-import { orderBy } from '../utils/array';
+import mkState, { Updatable, reset, update } from '../utils/state';
 
 // --- CONSTANTS ---
 // track how costly (in security) a growth/hacking thread is.
@@ -59,40 +59,28 @@ const MAX_RAM_EXPONENT = 20; // 2^20 GB
 const WEAKEN_TOOL_NAME = 'weak-target.js';
 const GROW_TOOL_NAME = 'grow-target.js';
 const HACK_TOOL_NAME = 'hack-target.js';
-const TOOL_NAMES: ReadonlyArray<string> = Object.freeze([
-  WEAKEN_TOOL_NAME,
-  GROW_TOOL_NAME,
-  HACK_TOOL_NAME,
-]);
-const SCRIPT_FILES: ReadonlyArray<string> = Object.freeze([
-  ...TOOL_NAMES,
-  'weaken.js',
-  'work.js',
-]);
-const WORK_SCRIPT: Script = 'work.js';
+
+// added arg to all started tools to keep track of origin
+const ORIGIN_ARG = '--origin=server-farm';
 
 // --- SCRIPT STATE ---
 type State = {
+  minRamExponent: number;
   nextServerIndex: number;
   currentTargets: number;
 };
 
 const defaultState: State = {
+  minRamExponent: MIN_RAM_EXPONENT,
   nextServerIndex: 0,
   currentTargets: 0,
 };
 
 // --- RUNTIME VARIABLES ---
-type Tools = 'weaken' | 'grow' | 'hack';
-type Tool = {
-  readonly name: string;
-  readonly short: Tools;
-  readonly cost: number;
-  readonly allowThreadSpreading: boolean;
-};
-
 // tools
-let tools: Map<Tools, Tool> = new Map();
+let weakenTool: Tool;
+let growTool: Tool;
+let hackTool: Tool;
 
 // multipliers for player abilities
 let playerHackingMoneyMult: number;
@@ -108,21 +96,13 @@ let bitnodeWeakenMult: number = 1;
 
 const actualWeakenPotency = () => bitnodeWeakenMult * WEAKEN_THREAD_POTENCY;
 
-const getTool = (tool: Tools): Tool => tools.get(tool)!;
-
 const getMaxThreads = (tool: Tool, workers: ReadonlyArray<Server>) => {
   const workerServers = orderBy(workers, getFreeServerRam, false);
-  let maxThreads = 0;
   for (const worker of workerServers) {
-    const threadsHere = Math.floor(getFreeServerRam(worker) / tool.cost);
-    if (!tool.allowThreadSpreading) return threadsHere;
-
-    if (threadsHere <= 0) break;
-
-    maxThreads += threadsHere;
+    return Math.floor(getFreeServerRam(worker) / toolCost(tool));
   }
 
-  return maxThreads;
+  return 0;
 };
 
 type ServerInfo = {
@@ -182,85 +162,56 @@ const deleteSingleServer = (
   }
 };
 
-const getPurchasedServersMinRamExponent = (
-  ns: NS,
-  servers: ReadonlyArray<string>,
-) => {
-  if (servers.length === 0) {
-    return MIN_RAM_EXPONENT;
-  }
-
-  const limit = ns.getPurchasedServerLimit();
-  let minRamExp = MAX_RAM_EXPONENT;
-  for (const server of servers) {
-    const [ram] = ns.getServerRam(server);
-    const expo = Math.log2(ram);
-    if (expo < minRamExp) minRamExp = expo;
-  }
-
-  if (servers.length === limit) {
-    minRamExp += 1;
-  }
-
-  return minRamExp >= MAX_RAM_EXPONENT ? null : minRamExp;
-};
-
 const maybeBuyServer = (
   ns: NS,
   investor: Investor,
   logger: Logger,
-  state: State,
+  state: Updatable<State>,
 ) => {
   const servers = ns.getPurchasedServers();
   const budget = getBudget(investor);
-  const minRamExponent = getPurchasedServersMinRamExponent(ns, servers);
   const limit = ns.getPurchasedServerLimit();
 
-  // done, all servers max upgraded, nothing more to do
-  if (minRamExponent === null) return false;
+  return update(state, state => {
+    // done, all servers max upgraded, nothing more to do
+    if (state.minRamExponent > MAX_RAM_EXPONENT) return false;
 
-  let ramExponent = minRamExponent;
-  while (
-    ns.getPurchasedServerCost(Math.pow(2, ramExponent)) < budget.moneyLeft &&
-    ramExponent < MAX_RAM_EXPONENT
-  ) {
-    ramExponent += 1;
-  }
-
-  if (ns.getPurchasedServerCost(Math.pow(2, ramExponent)) > budget.moneyLeft) {
-    // We can't afford any new servers
-    if (ramExponent > minRamExponent) return false;
-
-    ramExponent -= 1;
-  }
-
-  const cost = ns.getPurchasedServerCost(Math.pow(2, ramExponent));
-  return tryInvest(investor, 'host', cost, ns => {
-    if (servers.length >= limit) deleteSingleServer(ns, servers, logger);
-    const newServer = ns.purchaseServer(
-      `farm-${state.nextServerIndex++}`,
-      Math.pow(2, ramExponent),
-    );
-    if (!newServer || newServer.trim().length === 0) return 0;
-    logger`Purchased new server ${newServer} with 2^${ramExponent} (${Math.pow(
-      2,
-      ramExponent,
-    )}GB) ram`;
-    ns.scp(SCRIPT_FILES, 'home', newServer);
-    return cost;
-  });
-};
-
-const ensureHasFiles = (
-  ns: NS,
-  server: Server,
-  files: ReadonlyArray<string>,
-) => {
-  for (const file of files) {
-    if (!fileExists(server, file)) {
-      ns.scp(file, 'home', getHostname(server));
+    // check if we can afford a new server
+    if (
+      ns.getPurchasedServerCost(Math.pow(2, state.minRamExponent)) >=
+      budget.moneyLeft
+    ) {
+      return false;
     }
-  }
+
+    // see if we can go for more expensive servers
+    let ramExponent = state.minRamExponent;
+    while (
+      ramExponent < MAX_RAM_EXPONENT - 1 &&
+      ns.getPurchasedServerCost(Math.pow(2, ramExponent + 1)) < budget.moneyLeft
+    ) {
+      ramExponent += 1;
+    }
+
+    const cost = ns.getPurchasedServerCost(Math.pow(2, ramExponent));
+    return tryInvest(investor, 'host', cost, ns => {
+      if (servers.length >= limit) deleteSingleServer(ns, servers, logger);
+      const newServer = ns.purchaseServer(
+        `farm-${state.nextServerIndex++}`,
+        Math.pow(2, ramExponent),
+      );
+      if (!newServer || newServer.trim().length === 0) {
+        state.nextServerIndex--;
+        return 0;
+      }
+      state.minRamExponent = ramExponent;
+      logger`Purchased new server ${newServer} with 2^${ramExponent} (${Math.pow(
+        2,
+        ramExponent,
+      )}GB) ram`;
+      return cost;
+    });
+  });
 };
 
 const maybeHackServer = (ns: NS, logger: Logger) => {
@@ -270,11 +221,8 @@ const maybeHackServer = (ns: NS, logger: Logger) => {
     const hacked = hasRootAccess(node.server);
     if (!hacked && getHackStatus(node.server) === HackStatus.Hacked) {
       newlyHacked = true;
-      ns.scp(SCRIPT_FILES, 'home', getHostname(node.server));
       logger`Hacked server ${getHostname(node.server)}`;
     }
-
-    ensureHasFiles(ns, node.server, SCRIPT_FILES);
   }
 
   return newlyHacked;
@@ -299,40 +247,6 @@ const getTargetServers = (ns: NS) => {
     .filter(s => !purchasedServers.has(getHostname(s)));
 };
 
-const isTargeting = (server: Server, workers: ReadonlyArray<Server>) => {
-  for (const worker of workers) {
-    for (const process of runningProcesses(worker)) {
-      if (
-        TOOL_NAMES.includes(process.filename) &&
-        process.args[0] === getHostname(server)
-      ) {
-        if (process.args.length > 4 && process.args[4] !== 'prep') {
-          return true;
-        }
-      }
-    }
-  }
-
-  return false;
-};
-
-const isPrepping = (server: Server, workers: ReadonlyArray<Server>) => {
-  for (const worker of workers) {
-    for (const process of runningProcesses(worker)) {
-      if (
-        TOOL_NAMES.includes(process.filename) &&
-        process.args[0] === getHostname(server)
-      ) {
-        if (process.args.length > 4 && process.args[4] === 'prep') {
-          return true;
-        }
-      }
-    }
-  }
-
-  return false;
-};
-
 const adjustedGrowthRate = (target: ServerInfo) =>
   Math.min(MAX_GROWTH_RATE, 1 + (UNAJUSTED_GROWTH_RATE - 1) / target.minSec);
 const serverGrowthPercentage = (target: ServerInfo) =>
@@ -351,171 +265,119 @@ const getWeakenThreadsNeeded = (target: ServerInfo) =>
     (getSecurityLevel(target.server) - target.minSec) / actualWeakenPotency(),
   );
 
-const arbitraryExecution = async (
-  ns: NS,
-  tool: Tool,
-  threads: number,
-  workers: ReadonlyArray<Server>,
-  args: ReadonlyArray<string | number>,
-) => {
-  const workerServers = orderBy(workers, getFreeServerRam, false);
-  let totalThreads = 0;
-  for (const server of workerServers) {
-    // we've done it, move on.
-    if (threads <= 0) break;
-
-    const maxThreadsHere = Math.min(
-      threads,
-      Math.floor(getFreeServerRam(server) / tool.cost),
-    );
-    if (maxThreadsHere <= 0) continue;
-
-    threads -= maxThreadsHere;
-    totalThreads += maxThreadsHere;
-
-    ensureHasFiles(ns, server, [tool.name]);
-    await ns.exec(
-      tool.name,
-      getHostname(server),
-      maxThreadsHere,
-      ...args.map(String),
-    );
-
-    if (!tool.allowThreadSpreading) return true;
-  }
-
-  return totalThreads > 0;
-};
-
-const prepServer = async (
-  ns: NS,
+const weaken = async (
   target: ServerInfo,
-  workerServers: ReadonlyArray<Server>,
-  logger: Logger,
-) => {
-  // once we're in scheduling mode, presume prep server is to be skipped.
-  if (isTargeting(target.server, workerServers)) return;
+  workers: ReadonlyArray<Server>,
+): Promise<ReadonlyArray<Server>> => {
+  const neededThreads = getWeakenThreadsNeeded(target);
+  const minServer = findLast(
+    workers,
+    server => maxThreads(weakenTool, server) >= neededThreads,
+  );
+  const threads = Math.min(maxThreads(weakenTool, minServer), neededThreads);
+  await runTool(weakenTool, minServer, threads, [
+    getHostname(target.server),
+    ORIGIN_ARG,
+  ]);
 
-  const now = Date.now();
-  if (
-    getSecurityLevel(target.server) > target.minSec ||
-    getAvailableMoney(target.server) < target.maxMoney
-  ) {
-    const weakenTool = getTool('weaken');
-    let weakenForGrowthThreadsNeeded = 0;
-    if (getAvailableMoney(target.server) < target.maxMoney) {
-      const growTool = getTool('grow');
-      const growThreadsAllowable = getMaxThreads(growTool, workerServers);
-      const growThreadsNeeded = getGrowThreadsNeeded(target);
-      let trueGrowThreadsNeeded = Math.min(
-        growThreadsAllowable,
-        growThreadsNeeded,
-      );
-      weakenForGrowthThreadsNeeded = Math.ceil(
-        (trueGrowThreadsNeeded * GROWTH_THREAD_HARDENING) /
-          actualWeakenPotency(),
-      );
-      const growThreadThreshold =
-        (growThreadsAllowable - growThreadsNeeded) *
-        (growTool.cost / weakenTool.cost);
-      let growThreadsReleased =
-        (weakenTool.cost / growTool.cost) *
-        (weakenForGrowthThreadsNeeded + getWeakenThreadsNeeded(target));
-      if (growThreadThreshold >= growThreadsReleased) {
-        growThreadsReleased = 0;
-      }
-
-      trueGrowThreadsNeeded -= growThreadsReleased;
-      if (trueGrowThreadsNeeded > 0) {
-        logger`Prepping ${target.server} [grow].`;
-        await arbitraryExecution(
-          ns,
-          growTool,
-          trueGrowThreadsNeeded,
-          workerServers,
-          [getHostname(target.server), now, now, 0, 'prep'],
-        );
-      }
-    }
-
-    const threadsNeeded =
-      getWeakenThreadsNeeded(target) + weakenForGrowthThreadsNeeded;
-    const threadSleep = getWeakenTime(target.server) * 1000 * QUEUE_DELAY;
-    const threadsAllowable = getMaxThreads(weakenTool, workerServers);
-    const trueThreads = Math.min(threadsAllowable, threadsNeeded);
-    if (trueThreads > 0) {
-      logger`Prepping ${target.server} [weaken], resting for ${Math.floor(
-        threadSleep / 1000,
-      )} seconds.`;
-      await arbitraryExecution(ns, weakenTool, trueThreads, workerServers, [
-        getHostname(target.server),
-        now,
-        now,
-        0,
-        'prep',
-      ]);
-    }
+  const freeRam = getFreeServerRam(minServer);
+  if (freeRam > 5) {
+    return orderBy(workers, getFreeServerRam, false);
   }
+
+  return without(workers, minServer);
 };
 
-const retargetServers = async (ns: NS, logger: Logger, state: State) => {
-  const workerServers = orderBy(getWorkerServers(ns), getFreeServerRam, false);
+const grow = async (
+  target: ServerInfo,
+  workers: ReadonlyArray<Server>,
+): Promise<ReadonlyArray<Server>> => {
+  const neededThreads = getGrowThreadsNeeded(target);
+  const minServer = findLast(
+    workers,
+    server => maxThreads(growTool, server) >= neededThreads,
+  );
+  const threads = Math.min(maxThreads(growTool, minServer), neededThreads);
+  await runTool(growTool, minServer, threads, [
+    getHostname(target.server),
+    ORIGIN_ARG,
+  ]);
+
+  const freeRam = getFreeServerRam(minServer);
+  if (freeRam > 5) {
+    return orderBy(workers, getFreeServerRam, false);
+  }
+
+  return without(workers, minServer);
+};
+
+const hack = async (
+  target: ServerInfo,
+  workers: ReadonlyArray<Server>,
+): Promise<ReadonlyArray<Server>> => {
+  // TODO: Calculate best hacking thread count
+  const [worker, ...rest] = workers;
+  const threads = maxThreads(hackTool, worker);
+  await runTool(hackTool, worker, threads, [
+    getHostname(target.server),
+    ORIGIN_ARG,
+  ]);
+  return rest;
+};
+
+const scheduleServers = async (
+  ns: NS,
+  logger: Logger,
+  state: State,
+  workers: ReadonlyArray<Server>,
+  targets: ReadonlyArray<ServerInfo>,
+): Promise<void> => {
+  if (targets.length === 0) return;
+  if (workers.length === 0) return;
+  const [target, ...restTargets] = targets;
+  const sec = getSecurityLevel(target.server);
+  if (sec > target.minSec) {
+    const restWorkers = await weaken(target, workers);
+    return await scheduleServers(ns, logger, state, restWorkers, restTargets);
+  }
+
+  const money = getAvailableMoney(target.server);
+  if (money < target.maxMoney) {
+    const restWorkers = await grow(target, workers);
+    return await scheduleServers(ns, logger, state, restWorkers, restTargets);
+  }
+
+  const restWorkers = await hack(target, workers);
+  return await scheduleServers(ns, logger, state, restWorkers, restTargets);
+};
+
+const startWork = async (ns: NS, logger: Logger, state: State) => {
+  const workerServers = orderBy(
+    getWorkerServers(ns),
+    getFreeServerRam,
+    false,
+  ).filter(s => getFreeServerRam(s) > 5);
+
+  const existingTargets = new Set(
+    workerServers
+      .reduce(
+        (procs, s) => [...procs, ...runningProcesses(s)],
+        [] as ReadonlyArray<ProcessInfo>,
+      )
+      .filter(p => p.args.includes(ORIGIN_ARG))
+      .map(p => p.args[0]),
+  );
+
+  const untargeted = (s: Server) => !existingTargets.has(getHostname(s));
   const targetServers = orderBy(
     getTargetServers(ns)
+      .filter(untargeted)
       .map(getInfo)
-      .filter(Boolean) as Array<ServerInfo>,
+      .filter(Boolean) as ReadonlyArray<ServerInfo>,
     'currentRank',
   );
 
-  if (state.currentTargets < MAX_TARGETS) {
-    for (const target of targetServers) {
-      if (state.currentTargets >= MAX_TARGETS) break;
-
-      // now don't do anything to it until prep finishes, because it is in a resting state.
-      if (isPrepping(target.server, workerServers)) continue;
-
-      // if the target is in a resting state (we have scripts running against it), proceed to the next target.
-      if (isTargeting(target.server, workerServers)) continue;
-
-      // increment the target counter, consider this an optimal target
-      state.currentTargets++;
-
-      // perform weakening and initial growth until the server is "perfected"
-      await prepServer(ns, target, workerServers, logger);
-
-      // now don't do anything to it until prep finishes, because it is in a resting state.
-      if (isPrepping(target.server, workerServers)) continue;
-
-      // the server isn't optimized, this means we're out of ram from a more optimal target
-      if (
-        getSecurityLevel(target.server) > target.minSec ||
-        getAvailableMoney(target.server) < target.maxMoney
-      )
-        continue;
-
-      // adjust the percentage to steal until it's able to rapid fire as many as it can
-      //await optimizePerformanceMetrics(ns, target, workerServers);
-
-      // once conditions are optimal, fire barrage after barrage of cycles in a schedule
-      //await performScheduling(ns, target, workerServers);
-    }
-  }
-};
-
-const registerTool = (
-  ns: NS,
-  short: Tools,
-  name: string,
-  allowDistributed: boolean = false,
-): void => {
-  const tool: Tool = Object.freeze({
-    name,
-    short,
-    cost: ns.getScriptRam(name, 'home'),
-    allowThreadSpreading: allowDistributed,
-  });
-
-  tools.set(short, tool);
+  await scheduleServers(ns, logger, state, workerServers, targetServers);
 };
 
 export const main = async (ns: NS) => {
@@ -523,27 +385,29 @@ export const main = async (ns: NS) => {
   const state = mkState<State>(ns, defaultState);
   const term = createTerminalLogger(ns);
   const logger = createLogger(ns);
+  const [startTimeStr] = ns.args;
+  const startTime = parseInt(startTimeStr, 10);
+  if (Date.now() - startTime < 60 * 1000 /* 60 seconds */) {
+    reset(state);
+  }
 
-  registerTool(ns, 'weaken', WEAKEN_TOOL_NAME, true);
-  registerTool(ns, 'grow', GROW_TOOL_NAME);
-  registerTool(ns, 'hack', HACK_TOOL_NAME);
+  weakenTool = new Tool(ns, WEAKEN_TOOL_NAME);
+  growTool = new Tool(ns, GROW_TOOL_NAME);
+  hackTool = new Tool(ns, HACK_TOOL_NAME);
 
   const mults = ns.getHackingMultipliers();
   playerHackingGrowMult = mults.growth;
   playerHackingMoneyMult = mults.money;
 
-  const investor = new Investor(ns, 'servers', 400);
-  await retargetServers(ns, logger, state);
+  const investor = new Investor(ns, 'servers', 40);
   while (true) {
     // First, try to acquire new servers, if we can afford it
-    let newFarmServer = maybeBuyServer(ns, investor, term, state);
+    maybeBuyServer(ns, investor, term, state);
 
     // Then, try to hack any servers we are now high enough level for (or has the tools for)
-    let newHackedServer = maybeHackServer(ns, term);
+    maybeHackServer(ns, term);
 
-    if (newFarmServer || newHackedServer) {
-      await retargetServers(ns, logger, state);
-    }
+    await startWork(ns, logger, state);
 
     await ns.sleep(10_000);
   }

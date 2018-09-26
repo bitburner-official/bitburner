@@ -44,7 +44,7 @@ export const main = (ns: NS) => {
     status: getHackStatus(node.server),
   }));
 
-  if (includeOwned) {
+  if (!includeOwned) {
     flattened = flattened.filter(({ server }) => !isPlayerOwned(server));
   }
 

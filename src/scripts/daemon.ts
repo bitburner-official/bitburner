@@ -71,7 +71,7 @@ export const main = async (ns: NS) => {
   }
 
   if (await ns.prompt(`Enable server farm?`)) {
-    await ns.exec('server-farm.js', 'home');
+    await ns.exec('server-farm.js', 'home', 1, String(Date.now()));
   }
 
   if (await ns.prompt(`Enable stock broker`)) {
