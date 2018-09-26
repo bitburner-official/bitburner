@@ -229,11 +229,21 @@ const tryInvest = (investor, name, price, action) => {
     });
 };
 
+const formatters = new WeakMap();
+const getFormatter = (v) => {
+    if (v === null)
+        return null;
+    const formatter = formatters.get(v);
+    return formatter || getFormatter(Object.getPrototypeOf(v));
+};
 const arg = (v) => {
     if (typeof v === 'undefined')
         return '<undefined>';
     if (v === null)
         return '<null>';
+    const formatter = getFormatter(v);
+    if (formatter)
+        return formatter(v);
     if (typeof v.toLocaleString === 'function')
         return v.toLocaleString();
     return String(v);
