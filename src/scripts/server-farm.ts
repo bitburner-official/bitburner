@@ -46,10 +46,7 @@ const ARBITRARY_EXECUTION_DELAY = 12000;
 const QUEUE_DELAY = 12000;
 
 // the max number of batches this daemon will spool up to avoid running out of IRL ram
-const MAX_BATCHES = 60;
-
-// the max number of targets this daemon will run workers against to avoid running out of IRL ram
-const MAX_TARGETS = 5;
+const MIN_WORKER_RAM = 16;
 
 // minimum and maximum ram exponents to purchase servers with.
 const MIN_RAM_EXPONENT = 4; // 16GB
@@ -268,6 +265,7 @@ const getWeakenThreadsNeeded = (target: ServerInfo) =>
 const weaken = async (
   target: ServerInfo,
   workers: ReadonlyArray<Server>,
+  logger: Logger,
 ): Promise<ReadonlyArray<Server>> => {
   const neededThreads = getWeakenThreadsNeeded(target);
   const minServer = findLast(
@@ -275,13 +273,14 @@ const weaken = async (
     server => maxThreads(weakenTool, server) >= neededThreads,
   );
   const threads = Math.min(maxThreads(weakenTool, minServer), neededThreads);
+  logger`Weaken ${target.server} with ${threads} threads`;
   await runTool(weakenTool, minServer, threads, [
     getHostname(target.server),
     ORIGIN_ARG,
   ]);
 
   const freeRam = getFreeServerRam(minServer);
-  if (freeRam > 5) {
+  if (freeRam > MIN_WORKER_RAM) {
     return orderBy(workers, getFreeServerRam, false);
   }
 
@@ -291,6 +290,7 @@ const weaken = async (
 const grow = async (
   target: ServerInfo,
   workers: ReadonlyArray<Server>,
+  logger: Logger,
 ): Promise<ReadonlyArray<Server>> => {
   const neededThreads = getGrowThreadsNeeded(target);
   const minServer = findLast(
@@ -298,13 +298,14 @@ const grow = async (
     server => maxThreads(growTool, server) >= neededThreads,
   );
   const threads = Math.min(maxThreads(growTool, minServer), neededThreads);
+  logger`Grow ${target.server} with ${threads} threads`;
   await runTool(growTool, minServer, threads, [
     getHostname(target.server),
     ORIGIN_ARG,
   ]);
 
   const freeRam = getFreeServerRam(minServer);
-  if (freeRam > 5) {
+  if (freeRam > MIN_WORKER_RAM) {
     return orderBy(workers, getFreeServerRam, false);
   }
 
@@ -314,10 +315,12 @@ const grow = async (
 const hack = async (
   target: ServerInfo,
   workers: ReadonlyArray<Server>,
+  logger: Logger,
 ): Promise<ReadonlyArray<Server>> => {
   // TODO: Calculate best hacking thread count
   const [worker, ...rest] = workers;
   const threads = maxThreads(hackTool, worker);
+  logger`Hack ${target.server} with ${threads} threads`;
   await runTool(hackTool, worker, threads, [
     getHostname(target.server),
     ORIGIN_ARG,
@@ -337,17 +340,17 @@ const scheduleServers = async (
   const [target, ...restTargets] = targets;
   const sec = getSecurityLevel(target.server);
   if (sec > target.minSec) {
-    const restWorkers = await weaken(target, workers);
+    const restWorkers = await weaken(target, workers, logger);
     return await scheduleServers(ns, logger, state, restWorkers, restTargets);
   }
 
   const money = getAvailableMoney(target.server);
   if (money < target.maxMoney) {
-    const restWorkers = await grow(target, workers);
+    const restWorkers = await grow(target, workers, logger);
     return await scheduleServers(ns, logger, state, restWorkers, restTargets);
   }
 
-  const restWorkers = await hack(target, workers);
+  const restWorkers = await hack(target, workers, logger);
   return await scheduleServers(ns, logger, state, restWorkers, restTargets);
 };
 
@@ -356,7 +359,7 @@ const startWork = async (ns: NS, logger: Logger, state: State) => {
     getWorkerServers(ns),
     getFreeServerRam,
     false,
-  ).filter(s => getFreeServerRam(s) > 5);
+  ).filter(s => getFreeServerRam(s) > MIN_WORKER_RAM);
 
   const existingTargets = new Set(
     workerServers
@@ -364,7 +367,7 @@ const startWork = async (ns: NS, logger: Logger, state: State) => {
         (procs, s) => [...procs, ...runningProcesses(s)],
         [] as ReadonlyArray<ProcessInfo>,
       )
-      .filter(p => p.args.includes(ORIGIN_ARG))
+      .filter(p => p.args.includes(ORIGIN_ARG, 1))
       .map(p => p.args[0]),
   );
 
