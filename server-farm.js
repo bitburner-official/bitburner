@@ -562,7 +562,7 @@ const scheduleServers = async (ns, logger, state$$1, workers, targets) => {
 };
 const startWork = async (ns, logger, state$$1) => {
     const workerServers = orderBy(getWorkerServers(ns), getFreeServerRam, false).filter(s => getFreeServerRam(s) > MIN_WORKER_RAM);
-    const existingTargets = new Set(workerServers
+    const existingTargets = new Set(getWorkerServers(ns)
         .reduce((procs, s) => [...procs, ...runningProcesses(s)], [])
         .filter(p => p.args.includes(ORIGIN_ARG, 1))
         .map(p => p.args[0]));
@@ -596,7 +596,7 @@ const main = async (ns) => {
         // Then, try to hack any servers we are now high enough level for (or has the tools for)
         maybeHackServer(ns, term);
         await startWork(ns, logger, state$$1);
-        await ns.sleep(10000);
+        await ns.sleep(30000);
     }
 };
 
