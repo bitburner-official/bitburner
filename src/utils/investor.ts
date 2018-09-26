@@ -111,7 +111,8 @@ export const tryInvest = (
   const used = action(investor[_ns]);
   if (used <= 0) return false;
   return update(investor[_state], ledger => {
-    const investments = ledger[investor[_name]] || defaultEntry();
+    const investments =
+      ledger[investor[_name]] || (ledger[investor[_name]] = defaultEntry());
     investments.totalInvested += used;
     investments.investments[name] = incr(investments.investments[name], used);
     return true;
