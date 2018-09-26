@@ -5,9 +5,21 @@ export type Logger = (
   ...placeholders: any[]
 ) => void;
 
+const formatters = new WeakMap<object, (o: any) => string>();
+export const addFormatter = (proto: object, fn: (o: any) => string) =>
+  formatters.set(proto, fn);
+
+const getFormatter = (v: any): ((o: any) => string) | null => {
+  if (v === null) return null;
+  const formatter = formatters.get(v);
+  return formatter || getFormatter(Object.getPrototypeOf(v));
+};
+
 const arg = (v: any) => {
   if (typeof v === 'undefined') return '<undefined>';
   if (v === null) return '<null>';
+  const formatter = getFormatter(v);
+  if (formatter) return formatter(v);
   if (typeof v.toLocaleString === 'function') return v.toLocaleString();
   return String(v);
 };
