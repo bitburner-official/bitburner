@@ -404,7 +404,7 @@ const getInfo = (server) => {
     const weakenTime = getWeakenTime(server);
     const currentSec = getSecurityLevel(server);
     const rank = (maxMoney * growthRate) / (weakenTime * baseSec);
-    const currentRank = currentSec < minSec * 1.1 ? rank * (minSec * 1.1 - currentSec + 1) : rank;
+    const currentRank = currentSec <= minSec ? rank * (100 - minSec) : rank;
     return {
         maxMoney,
         growthRate,
