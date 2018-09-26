@@ -40,7 +40,7 @@ const MAX_GROWTH_RATE = 1.0035;
 
 // the number of milliseconds to delay the grow execution after theft, for timing reasons
 // the delay between each step should be *close* 1/4th of this number, but there is some imprecision
-const ARBITRARY_EXECUTION_DELAY = 12000;
+const ARBITRARY_EXECUTION_DELAY = 12_000;
 
 // the delay that it can take for a script to start, used to pessimistically schedule things in advance
 const QUEUE_DELAY = 12000;
@@ -362,7 +362,7 @@ const startWork = async (ns: NS, logger: Logger, state: State) => {
   ).filter(s => getFreeServerRam(s) > MIN_WORKER_RAM);
 
   const existingTargets = new Set(
-    workerServers
+    getWorkerServers(ns)
       .reduce(
         (procs, s) => [...procs, ...runningProcesses(s)],
         [] as ReadonlyArray<ProcessInfo>,
@@ -412,6 +412,6 @@ export const main = async (ns: NS) => {
 
     await startWork(ns, logger, state);
 
-    await ns.sleep(10_000);
+    await ns.sleep(30_000);
   }
 };
