@@ -273,7 +273,9 @@ const weaken = async (
     server => maxThreads(weakenTool, server) >= neededThreads,
   );
   const threads = Math.min(maxThreads(weakenTool, minServer), neededThreads);
-  logger`Weaken ${target.server} with ${threads} threads`;
+  logger`Weaken ${
+    target.server
+  } with ${threads} threads (wanted ${neededThreads})`;
   await runTool(weakenTool, minServer, threads, [
     getHostname(target.server),
     ORIGIN_ARG,
@@ -298,7 +300,9 @@ const grow = async (
     server => maxThreads(growTool, server) >= neededThreads,
   );
   const threads = Math.min(maxThreads(growTool, minServer), neededThreads);
-  logger`Grow ${target.server} with ${threads} threads`;
+  logger`Grow ${
+    target.server
+  } with ${threads} threads (wanted ${neededThreads})`;
   await runTool(growTool, minServer, threads, [
     getHostname(target.server),
     ORIGIN_ARG,
