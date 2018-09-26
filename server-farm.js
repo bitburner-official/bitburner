@@ -216,7 +216,7 @@ const flattenNetwork = (root) => {
 const _update = Symbol('state:update');
 const _reset = Symbol('state:reset');
 const state = (ns, defaultState, owner = ns.getScriptName()) => {
-    const name = owner + '.state.json';
+    const name = owner + '.state.json.txt';
     const writeState = (state) => {
         const json = JSON.stringify(state, null, 2);
         ns.write(name, json, 'w');
