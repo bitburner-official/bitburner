@@ -4,8 +4,11 @@ import {
   getAvailableMoney,
   getHackStatus,
   getHostname,
+  getMaxMoney,
+  getMinSecurityLevel,
   getRequiredHackingLevel,
   getRequiredPortCount,
+  getSecurityLevel,
   isPlayerOwned,
 } from '../core/server';
 import { flattenNetwork, scanNetwork } from '../utils/network';
@@ -15,6 +18,18 @@ import { createTerminalLogger } from '../utils/print';
 import { parseArgs } from '../utils/argparse';
 
 const getServerDisplay = (server: Server) => `${getHostname(server)}`;
+const getMoneyDisplay = (server: Server) => {
+  const money = getAvailableMoney(server);
+  const maxMoney = getMaxMoney(server);
+  const sec = getSecurityLevel(server);
+  const minSec = getMinSecurityLevel(server);
+  return `${money.toLocaleString('en-us', {
+    style: 'currency',
+    currency: 'USD',
+  })} (${(money / maxMoney).toLocaleString('en-us', {
+    style: 'percent',
+  })}) ${sec} SEC/${minSec} MIN`;
+};
 
 export const main = (ns: NS) => {
   const args = parseArgs(ns, {
@@ -70,7 +85,7 @@ export const main = (ns: NS) => {
     terminal`=== Hacked ===`;
     for (const { server } of hacked) {
       if (moneyOnly) {
-        terminal`${getServerDisplay(server)}: \$${getAvailableMoney(server)}`;
+        terminal`${getServerDisplay(server)}: \$${getMoneyDisplay(server)}`;
       } else {
         terminal`${getServerDisplay(server)}`;
       }
