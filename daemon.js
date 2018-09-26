@@ -12,6 +12,9 @@ class Server {
         this[_ns] = ns;
         Object.freeze(this);
     }
+    toString() {
+        return this[_hostname];
+    }
 }
 const getHostname = (server) => server[_hostname];
 const getServerRam = (server) => {
