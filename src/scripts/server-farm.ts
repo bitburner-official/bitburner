@@ -56,7 +56,7 @@ const MIN_RAM_EXPONENT = 4; // 16GB
 const MAX_RAM_EXPONENT = 20; // 2^20 GB
 
 // scripts to copy to all managed servers
-const WEAKEN_TOOL_NAME = 'weak-target.js';
+const WEAKEN_TOOL_NAME = 'weaken-target.js';
 const GROW_TOOL_NAME = 'grow-target.js';
 const HACK_TOOL_NAME = 'hack-target.js';
 

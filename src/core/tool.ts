@@ -10,7 +10,7 @@ export class Tool {
 
   constructor(ns: NS, script: Script) {
     if (!ns.fileExists(script, 'home')) {
-      throw new Error('Tool does not exist on home');
+      throw new Error(`Tool ${script} does not exist on home`);
     }
 
     this[_script] = script;
