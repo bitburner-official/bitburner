@@ -27,6 +27,10 @@ export class Server {
     this[_ns] = ns;
     Object.freeze(this);
   }
+
+  toString() {
+    return this[_hostname];
+  }
 }
 
 export const getHostname = (server: Server) => server[_hostname];
