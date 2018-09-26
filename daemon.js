@@ -35,7 +35,7 @@ const arg = (v) => {
     if (formatter)
         return formatter(v);
     if (typeof v.toLocaleString === 'function')
-        return v.toLocaleString();
+        return v.toLocaleString('en-us');
     return String(v);
 };
 const prettifyString = (literals, ...placeholders) => {
