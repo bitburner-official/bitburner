@@ -491,7 +491,8 @@ const getTargetServers = (ns) => {
     const purchasedServers = new Set(ns.getPurchasedServers());
     return getAllServers(ns)
         .filter(s => getMaxMoney(s) > 0)
-        .filter(s => !purchasedServers.has(getHostname(s)));
+        .filter(s => !purchasedServers.has(getHostname(s)))
+        .filter(s => getHostname(s) !== 'foodnstuff'); // used for levling
 };
 const adjustedGrowthRate = (target) => Math.min(MAX_GROWTH_RATE, 1 + (UNAJUSTED_GROWTH_RATE - 1) / target.minSec);
 const serverGrowthPercentage = (target) => (target.growthRate * bitnodeGrowMult * playerHackingGrowMult) / 100;
