@@ -346,6 +346,8 @@ const scheduleServers = async (
         LEVEL_ARG,
       ]);
     }
+
+    return;
   }
 
   const [target, ...restTargets] = targets;
