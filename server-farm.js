@@ -558,6 +558,7 @@ const scheduleServers = async (ns, logger, state$$1, workers, targets) => {
                 LEVEL_ARG,
             ]);
         }
+        return;
     }
     const [target, ...restTargets] = targets;
     const sec = getSecurityLevel(target.server);
