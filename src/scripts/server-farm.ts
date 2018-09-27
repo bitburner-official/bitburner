@@ -231,7 +231,8 @@ const getTargetServers = (ns: NS) => {
   const purchasedServers = new Set(ns.getPurchasedServers());
   return getAllServers(ns)
     .filter(s => getMaxMoney(s) > 0)
-    .filter(s => !purchasedServers.has(getHostname(s)));
+    .filter(s => !purchasedServers.has(getHostname(s)))
+    .filter(s => getHostname(s) !== 'foodnstuff'); // used for levling
 };
 
 const adjustedGrowthRate = (target: ServerInfo) =>
