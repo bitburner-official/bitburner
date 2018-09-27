@@ -52,6 +52,9 @@ const MIN_WORKER_RAM = 16;
 const MIN_RAM_EXPONENT = 4; // 16GB
 const MAX_RAM_EXPONENT = 20; // 2^20 GB
 
+// server used to level instead of money
+const LEVEL_TARGET = 'foodnstuff';
+
 // scripts to copy to all managed servers
 const WEAKEN_TOOL_NAME = 'weaken-target.js';
 const GROW_TOOL_NAME = 'grow-target.js';
@@ -59,6 +62,7 @@ const HACK_TOOL_NAME = 'hack-target.js';
 
 // added arg to all started tools to keep track of origin
 const ORIGIN_ARG = '--origin=server-farm';
+const LEVEL_ARG = '--purpose=gain-exp';
 
 // --- SCRIPT STATE ---
 type State = {
@@ -232,7 +236,7 @@ const getTargetServers = (ns: NS) => {
   return getAllServers(ns)
     .filter(s => getMaxMoney(s) > 0)
     .filter(s => !purchasedServers.has(getHostname(s)))
-    .filter(s => getHostname(s) !== 'foodnstuff'); // used for levling
+    .filter(s => getHostname(s) !== LEVEL_TARGET); // used for levling
 };
 
 const adjustedGrowthRate = (target: ServerInfo) =>
@@ -330,8 +334,20 @@ const scheduleServers = async (
   workers: ReadonlyArray<Server>,
   targets: ReadonlyArray<ServerInfo>,
 ): Promise<void> => {
-  if (targets.length === 0) return;
   if (workers.length === 0) return;
+
+  if (targets.length === 0) {
+    // use the rest of the servers for level gaining
+    for (const worker of workers) {
+      const threads = maxThreads(weakenTool, worker);
+      await runTool(weakenTool, worker, threads, [
+        LEVEL_TARGET,
+        ORIGIN_ARG,
+        LEVEL_ARG,
+      ]);
+    }
+  }
+
   const [target, ...restTargets] = targets;
   const sec = getSecurityLevel(target.server);
   if (sec > target.minSec) {
