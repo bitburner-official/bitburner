@@ -545,7 +545,7 @@ const weaken = async (target, workers, logger) => {
         ORIGIN_ARG,
     ]);
     const freeRam = getFreeServerRam(minServer);
-    if (freeRam > MIN_WORKER_RAM) {
+    if (freeRam >= MIN_WORKER_RAM) {
         return orderBy(workers, getFreeServerRam, false);
     }
     return without(workers, minServer);
@@ -560,7 +560,7 @@ const grow = async (target, workers, logger) => {
         ORIGIN_ARG,
     ]);
     const freeRam = getFreeServerRam(minServer);
-    if (freeRam > MIN_WORKER_RAM) {
+    if (freeRam >= MIN_WORKER_RAM) {
         return orderBy(workers, getFreeServerRam, false);
     }
     return without(workers, minServer);
@@ -606,7 +606,7 @@ const scheduleServers = async (ns, logger, state$$1, workers, targets) => {
     return await scheduleServers(ns, logger, state$$1, restWorkers, restTargets);
 };
 const startWork = async (ns, logger, state$$1) => {
-    const workerServers = orderBy(getWorkerServers(ns), getFreeServerRam, false).filter(s => getFreeServerRam(s) > MIN_WORKER_RAM);
+    const workerServers = orderBy(getWorkerServers(ns), getFreeServerRam, false).filter(s => getFreeServerRam(s) >= MIN_WORKER_RAM);
     const existingTargets = new Set(getWorkerServers(ns)
         .reduce((procs, s) => [...procs, ...runningProcesses(s)], [])
         .filter(p => p.args.includes(ORIGIN_ARG, 1))
