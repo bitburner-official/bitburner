@@ -135,7 +135,7 @@ const deleteSingleServer = (
   ns: NS,
   servers: ReadonlyArray<string>,
   logger: Logger,
-) => {
+): boolean => {
   let minRam = Number.MAX_SAFE_INTEGER;
   let minServer: string | null = null;
   for (const server of servers) {
@@ -147,12 +147,25 @@ const deleteSingleServer = (
   }
 
   if (minServer !== null) {
-    logger`Deleting server ${minServer}`;
-    ns.deleteServer(minServer);
+    if (ns.deleteServer(minServer)) {
+      logger`Deleted server ${minServer}`;
+      return true;
+    } else {
+      logger`Failed to delete server ${minServer}`;
+      return false;
+    }
   }
+
+  throw new Error(`Failed to find server to delete`);
 };
 
-const maybeBuyServer = (
+const enum ServerPurchaseResult {
+  BoughtServer,
+  DidNotBuy,
+  FailedToDeleteServer,
+}
+
+const maybeBuyServer = async (
   ns: NS,
   investor: Investor,
   logger: Logger,
@@ -162,46 +175,67 @@ const maybeBuyServer = (
   const budget = getBudget(investor);
   const limit = ns.getPurchasedServerLimit();
 
-  return update(state, state => {
-    // done, all servers max upgraded, nothing more to do
-    if (state.minRamExponent > MAX_RAM_EXPONENT) return false;
+  while (true) {
+    const result: ServerPurchaseResult = update(state, state => {
+      // done, all servers max upgraded, nothing more to do
+      if (state.minRamExponent > MAX_RAM_EXPONENT)
+        return ServerPurchaseResult.DidNotBuy;
 
-    // check if we can afford a new server
-    if (
-      ns.getPurchasedServerCost(Math.pow(2, state.minRamExponent)) >=
-      budget.moneyLeft
-    ) {
-      return false;
-    }
-
-    // see if we can go for more expensive servers
-    let ramExponent = state.minRamExponent;
-    while (
-      ramExponent < MAX_RAM_EXPONENT - 1 &&
-      ns.getPurchasedServerCost(Math.pow(2, ramExponent + 1)) < budget.moneyLeft
-    ) {
-      ramExponent += 1;
-    }
-
-    const cost = ns.getPurchasedServerCost(Math.pow(2, ramExponent));
-    return tryInvest(investor, 'host', cost, ns => {
-      if (servers.length >= limit) deleteSingleServer(ns, servers, logger);
-      const newServer = ns.purchaseServer(
-        `farm-${state.nextServerIndex++}`,
-        Math.pow(2, ramExponent),
-      );
-      if (!newServer || newServer.trim().length === 0) {
-        state.nextServerIndex--;
-        return 0;
+      // check if we can afford a new server
+      if (
+        ns.getPurchasedServerCost(Math.pow(2, state.minRamExponent)) >=
+        budget.moneyLeft
+      ) {
+        return ServerPurchaseResult.DidNotBuy;
       }
-      state.minRamExponent = ramExponent;
-      logger`Purchased new server ${newServer} with 2^${ramExponent} (${Math.pow(
-        2,
-        ramExponent,
-      )}GB) ram`;
-      return cost;
+
+      // see if we can go for more expensive servers
+      let ramExponent = state.minRamExponent;
+      while (
+        ramExponent < MAX_RAM_EXPONENT - 1 &&
+        ns.getPurchasedServerCost(Math.pow(2, ramExponent + 1)) <
+          budget.moneyLeft
+      ) {
+        ramExponent += 1;
+      }
+
+      const cost = ns.getPurchasedServerCost(Math.pow(2, ramExponent));
+      let failedToDelete = false;
+      const bought = tryInvest(investor, 'host', cost, ns => {
+        if (servers.length >= limit) {
+          if (!deleteSingleServer(ns, servers, logger)) {
+            failedToDelete = true;
+            return 0;
+          }
+        }
+        const newServer = ns.purchaseServer(
+          `farm-${state.nextServerIndex++}`,
+          Math.pow(2, ramExponent),
+        );
+        if (!newServer || newServer.trim().length === 0) {
+          state.nextServerIndex--;
+          return 0;
+        }
+        state.minRamExponent = ramExponent;
+        logger`Purchased new server ${newServer} with 2^${ramExponent} (${Math.pow(
+          2,
+          ramExponent,
+        )}GB) ram`;
+        return cost;
+      });
+
+      if (failedToDelete) return ServerPurchaseResult.FailedToDeleteServer;
+      return bought
+        ? ServerPurchaseResult.BoughtServer
+        : ServerPurchaseResult.DidNotBuy;
     });
-  });
+
+    if (result === ServerPurchaseResult.FailedToDeleteServer) {
+      await ns.sleep(2_000);
+    } else {
+      return result === ServerPurchaseResult.BoughtServer;
+    }
+  }
 };
 
 const maybeHackServer = (ns: NS, logger: Logger) => {
@@ -418,7 +452,7 @@ export const main = async (ns: NS) => {
   const investor = new Investor(ns, 'servers', 40);
   while (true) {
     // First, try to acquire new servers, if we can afford it
-    maybeBuyServer(ns, investor, term, state);
+    await maybeBuyServer(ns, investor, term, state);
 
     // Then, try to hack any servers we are now high enough level for (or has the tools for)
     maybeHackServer(ns, term);
