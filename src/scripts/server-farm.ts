@@ -40,10 +40,8 @@ const MAX_GROWTH_RATE = 1.0035;
 
 // the number of milliseconds to delay the grow execution after theft, for timing reasons
 // the delay between each step should be *close* 1/4th of this number, but there is some imprecision
-const ARBITRARY_EXECUTION_DELAY = 12_000;
-
-// the delay that it can take for a script to start, used to pessimistically schedule things in advance
-const QUEUE_DELAY = 12000;
+const ITERATION_LENGTH = 30_000;
+const SCRIPT_START_DELAY = 12_000;
 
 // the max number of batches this daemon will spool up to avoid running out of IRL ram
 const MIN_WORKER_RAM = 16;
@@ -59,10 +57,10 @@ const LEVEL_TARGET = 'foodnstuff';
 const WEAKEN_TOOL_NAME = 'weaken-target.js';
 const GROW_TOOL_NAME = 'grow-target.js';
 const HACK_TOOL_NAME = 'hack-target.js';
+const EXP_TOOL_NAME = 'exp-weaken-target.js';
 
 // added arg to all started tools to keep track of origin
 const ORIGIN_ARG = '--origin=server-farm';
-const LEVEL_ARG = '--purpose=gain-exp';
 
 // --- SCRIPT STATE ---
 type State = {
@@ -82,6 +80,7 @@ const defaultState: State = {
 let weakenTool: Tool;
 let growTool: Tool;
 let hackTool: Tool;
+let expTool: Tool;
 
 // multipliers for player abilities
 let playerHackingMoneyMult: number;
@@ -339,11 +338,11 @@ const scheduleServers = async (
   if (targets.length === 0) {
     // use the rest of the servers for level gaining
     for (const worker of workers) {
-      const threads = maxThreads(weakenTool, worker);
-      await runTool(weakenTool, worker, threads, [
+      const threads = maxThreads(expTool, worker);
+      await runTool(expTool, worker, threads, [
         LEVEL_TARGET,
+        String(Date.now() + ITERATION_LENGTH * 2 - SCRIPT_START_DELAY),
         ORIGIN_ARG,
-        LEVEL_ARG,
       ]);
     }
 
@@ -410,6 +409,7 @@ export const main = async (ns: NS) => {
   weakenTool = new Tool(ns, WEAKEN_TOOL_NAME);
   growTool = new Tool(ns, GROW_TOOL_NAME);
   hackTool = new Tool(ns, HACK_TOOL_NAME);
+  expTool = new Tool(ns, EXP_TOOL_NAME);
 
   const mults = ns.getHackingMultipliers();
   playerHackingGrowMult = mults.growth;
@@ -425,6 +425,6 @@ export const main = async (ns: NS) => {
 
     await startWork(ns, logger, state);
 
-    await ns.sleep(30_000);
+    await ns.sleep(ITERATION_LENGTH);
   }
 };
