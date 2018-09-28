@@ -1,6 +1,7 @@
 {
   "scripts": [
     "daemon.js",
+    "exp-weaken-target.js",
     "grow-target.js",
     "hack-target.js",
     "hacknet.js",
@@ -12,6 +13,6 @@
     "weaken.js",
     "work.js"
   ],
-  "hash": "1f7b08f1b7d2895524215722f87fe6366e46462c",
-  "date": 1538032736209
+  "hash": "c1267e56c7b07c61dfb593f73aba785278e81f3f",
+  "date": 1538142767447
 }

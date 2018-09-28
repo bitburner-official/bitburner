@@ -366,6 +366,10 @@ const WEAKEN_THREAD_POTENCY = 0.05;
 const UNAJUSTED_GROWTH_RATE = 1.03;
 // max server growth rate, growth rates higher than this are throttled.
 const MAX_GROWTH_RATE = 1.0035;
+// the number of milliseconds to delay the grow execution after theft, for timing reasons
+// the delay between each step should be *close* 1/4th of this number, but there is some imprecision
+const ITERATION_LENGTH = 30000;
+const SCRIPT_START_DELAY = 12000;
 // the max number of batches this daemon will spool up to avoid running out of IRL ram
 const MIN_WORKER_RAM = 16;
 // minimum and maximum ram exponents to purchase servers with.
@@ -377,9 +381,9 @@ const LEVEL_TARGET = 'foodnstuff';
 const WEAKEN_TOOL_NAME = 'weaken-target.js';
 const GROW_TOOL_NAME = 'grow-target.js';
 const HACK_TOOL_NAME = 'hack-target.js';
+const EXP_TOOL_NAME = 'exp-weaken-target.js';
 // added arg to all started tools to keep track of origin
 const ORIGIN_ARG = '--origin=server-farm';
-const LEVEL_ARG = '--purpose=gain-exp';
 const defaultState = {
     minRamExponent: MIN_RAM_EXPONENT,
     nextServerIndex: 0,
@@ -390,6 +394,7 @@ const defaultState = {
 let weakenTool;
 let growTool;
 let hackTool;
+let expTool;
 // multipliers for player abilities
 let playerHackingMoneyMult;
 let playerHackingGrowMult;
@@ -551,11 +556,11 @@ const scheduleServers = async (ns, logger, state$$1, workers, targets) => {
     if (targets.length === 0) {
         // use the rest of the servers for level gaining
         for (const worker of workers) {
-            const threads = maxThreads(weakenTool, worker);
-            await runTool(weakenTool, worker, threads, [
+            const threads = maxThreads(expTool, worker);
+            await runTool(expTool, worker, threads, [
                 LEVEL_TARGET,
+                String(Date.now() + ITERATION_LENGTH * 2 - SCRIPT_START_DELAY),
                 ORIGIN_ARG,
-                LEVEL_ARG,
             ]);
         }
         return;
@@ -600,6 +605,7 @@ const main = async (ns) => {
     weakenTool = new Tool(ns, WEAKEN_TOOL_NAME);
     growTool = new Tool(ns, GROW_TOOL_NAME);
     hackTool = new Tool(ns, HACK_TOOL_NAME);
+    expTool = new Tool(ns, EXP_TOOL_NAME);
     const mults = ns.getHackingMultipliers();
     playerHackingGrowMult = mults.growth;
     playerHackingMoneyMult = mults.money;
@@ -610,7 +616,7 @@ const main = async (ns) => {
         // Then, try to hack any servers we are now high enough level for (or has the tools for)
         maybeHackServer(ns, term);
         await startWork(ns, logger, state$$1);
-        await ns.sleep(30000);
+        await ns.sleep(ITERATION_LENGTH);
     }
 };
 
