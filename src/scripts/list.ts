@@ -142,11 +142,26 @@ export const main = (ns: NS) => {
     terminal`Needs level: ${needsLevel.length}`;
     terminal`Needs ports: ${needsPorts.length}`;
     if (moneyOnly) {
-      const money = hacked
-        .filter(({ server }) => !isPlayerOwned(server))
-        .reduce((num, { server }) => num + getAvailableMoney(server), 0);
+      const moneyServers = hacked.filter(
+        ({ server }) => !isPlayerOwned(server),
+      );
+      const money = moneyServers.reduce(
+        (num, { server }) => num + getAvailableMoney(server),
+        0,
+      );
+      const potential = moneyServers.reduce(
+        (num, { server }) => num + getMaxMoney(server),
+        0,
+      );
 
-      terminal`Total available money: \$${money}`;
+      terminal`Total available money: ${money.toLocaleString('en-us', {
+        style: 'currency',
+        currency: 'USD',
+      })}`;
+      terminal`Total potential money: ${potential.toLocaleString('en-us', {
+        style: 'currency',
+        currency: 'USD',
+      })}`;
     }
   }
 };

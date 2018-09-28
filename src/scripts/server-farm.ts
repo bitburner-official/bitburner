@@ -310,7 +310,7 @@ const weaken = async (
   ]);
 
   const freeRam = getFreeServerRam(minServer);
-  if (freeRam > MIN_WORKER_RAM) {
+  if (freeRam >= MIN_WORKER_RAM) {
     return orderBy(workers, getFreeServerRam, false);
   }
 
@@ -337,7 +337,7 @@ const grow = async (
   ]);
 
   const freeRam = getFreeServerRam(minServer);
-  if (freeRam > MIN_WORKER_RAM) {
+  if (freeRam >= MIN_WORKER_RAM) {
     return orderBy(workers, getFreeServerRam, false);
   }
 
@@ -405,7 +405,7 @@ const startWork = async (ns: NS, logger: Logger, state: State) => {
     getWorkerServers(ns),
     getFreeServerRam,
     false,
-  ).filter(s => getFreeServerRam(s) > MIN_WORKER_RAM);
+  ).filter(s => getFreeServerRam(s) >= MIN_WORKER_RAM);
 
   const existingTargets = new Set(
     getWorkerServers(ns)
