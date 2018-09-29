@@ -234,70 +234,80 @@ const maybeStr = (prefix) => typeof prefix === 'string' ? prefix : '';
 const createLogger = (ns, prefix) => (literals, ...placeholders) => ns.print(maybeStr(prefix) + prettifyString(literals, ...placeholders));
 
 const main = async (ns) => {
-    ns.disableLog('getServerMoneyAvailable');
-    ns.disableLog('sleep');
+    ns.disableLog('ALL');
     const log = createLogger(ns);
     const investor = new Investor(ns, 'hacknet', 40);
     const nextAction = () => {
         const nodePrice = getNodePurchaseCost(ns);
-        let action = {
-            price: nodePrice,
-            description: 'purchase new hacknet node',
-            exec: ns => {
-                const nodePrice = getNodePurchaseCost(ns);
-                if (purchaseNode(ns) === null)
-                    return 0;
-                return nodePrice;
-            },
-        };
-        for (let node of getNodes(ns)) {
-            const levelCost = getNodeLevelCost(node);
-            const ramCost = getNodeRamCost(node);
-            const coreCost = getNodeCoreCost(node);
-            if (levelCost !== null && levelCost < action.price) {
-                action = {
-                    price: levelCost,
-                    description: `upgrade level of node ${node}`,
+        const actionsArr = [
+            [
+                {
+                    price: nodePrice,
+                    description: 'purchase new hacknet node',
                     exec: ns => {
-                        const levelCost = getNodeLevelCost(node);
-                        if (levelCost === null)
+                        const nodePrice = getNodePurchaseCost(ns);
+                        if (purchaseNode(ns) === null)
                             return 0;
-                        if (upgradeNodeLevel(node))
-                            return levelCost;
-                        return 0;
+                        return nodePrice;
                     },
-                };
-            }
-            if (ramCost !== null && ramCost < action.price) {
-                action = {
-                    price: ramCost,
-                    description: `upgrade ram of node ${node}`,
-                    exec: ns => {
-                        const ramCost = getNodeRamCost(node);
-                        if (ramCost === null)
+                },
+            ],
+            ...getNodes(ns).map((node) => {
+                const actions = [];
+                const levelCost = getNodeLevelCost(node);
+                const ramCost = getNodeRamCost(node);
+                const coreCost = getNodeCoreCost(node);
+                if (levelCost !== null) {
+                    actions.push({
+                        price: levelCost,
+                        description: `upgrade level of node ${node}`,
+                        exec: ns => {
+                            const levelCost = getNodeLevelCost(node);
+                            if (levelCost === null)
+                                return 0;
+                            if (upgradeNodeLevel(node))
+                                return levelCost;
                             return 0;
-                        if (upgradeNodeRam(node))
-                            return ramCost;
-                        return 0;
-                    },
-                };
-            }
-            if (coreCost !== null && coreCost < action.price) {
-                action = {
-                    price: coreCost,
-                    description: `upgrade cores of node ${node}`,
-                    exec: ns => {
-                        const coreCost = getNodeCoreCost(node);
-                        if (coreCost === null)
+                        },
+                    });
+                }
+                if (ramCost !== null) {
+                    actions.push({
+                        price: ramCost,
+                        description: `upgrade ram of node ${node}`,
+                        exec: ns => {
+                            const ramCost = getNodeRamCost(node);
+                            if (ramCost === null)
+                                return 0;
+                            if (upgradeNodeRam(node))
+                                return ramCost;
                             return 0;
-                        if (upgradeNodeCores(node))
-                            return coreCost;
-                        return 0;
-                    },
-                };
-            }
-        }
-        return action;
+                        },
+                    });
+                }
+                if (coreCost !== null) {
+                    actions.push({
+                        price: coreCost,
+                        description: `upgrade cores of node ${node}`,
+                        exec: ns => {
+                            const coreCost = getNodeCoreCost(node);
+                            if (coreCost === null)
+                                return 0;
+                            if (upgradeNodeCores(node))
+                                return coreCost;
+                            return 0;
+                        },
+                    });
+                }
+                return actions;
+            }),
+        ];
+        const actions = [].concat(...actionsArr);
+        return actions.reduce((left, right) => {
+            if (left.price < right.price)
+                return left;
+            return right;
+        });
     };
     while (true) {
         const action = nextAction();

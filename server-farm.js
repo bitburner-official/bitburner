@@ -289,6 +289,13 @@ const runTool = async (tool, server, threads, args) => {
     return await tool[_ns$2].exec(tool[_script], getHostname(server), threads, ...args);
 };
 
+const pipe = (...fns) => (v) => fns.reduce((v, f) => f(v), v);
+
+const format = (opts) => (v) => v.toLocaleString('en-us', opts);
+const append = (s) => (v) => v + s;
+const fNumber = format({});
+const fRam = pipe(format({}), append('GB'));
+
 const orderBy = (array, prop, asc = true) => {
     const accessor = typeof prop === 'function' ? prop : (item) => item[prop];
     const copy = [...array];
@@ -482,7 +489,7 @@ const maybeBuyServer = async (ns, investor, logger, state$$1) => {
                     return 0;
                 }
                 state$$1.minRamExponent = ramExponent;
-                logger `Purchased new server ${newServer} with 2^${ramExponent} (${Math.pow(2, ramExponent)}GB) ram`;
+                logger `Purchased new server ${newServer} with 2^${fNumber(ramExponent)} (${fRam(Math.pow(2, ramExponent))}) ram`;
                 return cost;
             });
             if (failedToDelete)
@@ -492,7 +499,7 @@ const maybeBuyServer = async (ns, investor, logger, state$$1) => {
                 : 1 /* DidNotBuy */;
         });
         if (result === 2 /* FailedToDeleteServer */) {
-            await ns.sleep(2000);
+            await ns.sleep(5000);
         }
         else {
             return result === 0 /* BoughtServer */;
@@ -539,7 +546,7 @@ const weaken = async (target, workers, logger) => {
     const neededThreads = getWeakenThreadsNeeded(target);
     const minServer = findLast(workers, server => maxThreads(weakenTool, server) >= neededThreads);
     const threads = Math.min(maxThreads(weakenTool, minServer), neededThreads);
-    logger `Weaken ${target.server} with ${threads} threads (wanted ${neededThreads})`;
+    logger `Weaken ${getHostname(target.server)} with ${fNumber(threads)} threads (wanted ${fNumber(neededThreads)})`;
     await runTool(weakenTool, minServer, threads, [
         getHostname(target.server),
         ORIGIN_ARG,
@@ -554,7 +561,7 @@ const grow = async (target, workers, logger) => {
     const neededThreads = getGrowThreadsNeeded(target);
     const minServer = findLast(workers, server => maxThreads(growTool, server) >= neededThreads);
     const threads = Math.min(maxThreads(growTool, minServer), neededThreads);
-    logger `Grow ${target.server} with ${threads} threads (wanted ${neededThreads})`;
+    logger `Grow ${getHostname(target.server)} with ${fNumber(threads)} threads (wanted ${fNumber(neededThreads)})`;
     await runTool(growTool, minServer, threads, [
         getHostname(target.server),
         ORIGIN_ARG,
@@ -569,7 +576,7 @@ const hack = async (target, workers, logger) => {
     // TODO: Calculate best hacking thread count
     const [worker, ...rest] = workers;
     const threads = maxThreads(hackTool, worker);
-    logger `Hack ${target.server} with ${threads} threads`;
+    logger `Hack ${getHostname(target.server)} with ${fNumber(threads)} threads`;
     await runTool(hackTool, worker, threads, [
         getHostname(target.server),
         ORIGIN_ARG,

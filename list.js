@@ -24,6 +24,10 @@ class Server {
     }
 }
 const getHostname = (server) => server[_hostname];
+const getServerRam = (server) => {
+    const [total, used] = server[_ns].getServerRam(server[_hostname]);
+    return { total, used };
+};
 const hasRootAccess = (server) => server[_ns].hasRootAccess(server[_hostname]);
 const getAvailableMoney = (server) => server[_ns].getServerMoneyAvailable(server[_hostname]);
 const getMaxMoney = (server) => server[_ns].getServerMaxMoney(server[_hostname]);
@@ -67,6 +71,17 @@ const getHackStatus = (server) => {
     }
     return HackStatus.NeedsPorts;
 };
+
+const pipe = (...fns) => (v) => fns.reduce((v, f) => f(v), v);
+
+const format = (opts) => (v) => v.toLocaleString('en-us', opts);
+const append = (s) => (v) => v + s;
+const fNumber = format({});
+const fMoney = format({
+    style: 'currency',
+    currency: 'USD',
+});
+const fRam = pipe(format({}), append('GB'));
 
 const scanNetwork = (ns) => {
     const homeServer = {
@@ -438,12 +453,7 @@ const getMoneyDisplay = (server) => {
     const maxMoney = getMaxMoney(server);
     const sec = getSecurityLevel(server);
     const minSec = getMinSecurityLevel(server);
-    return `${money.toLocaleString('en-us', {
-        style: 'currency',
-        currency: 'USD',
-    })} (${(money / maxMoney).toLocaleString('en-us', {
-        style: 'percent',
-    })}) ${sec} SEC/${minSec} MIN`;
+    return `${fMoney(money)} (${fMoney(money / maxMoney)}) ${fNumber(sec)} SEC/${fNumber(minSec)} MIN`;
 };
 const main = (ns) => {
     const args = parseArgs(ns, {
@@ -513,7 +523,7 @@ const main = (ns) => {
         output = true;
         terminal `=== Needs level ===`;
         for (const { server } of needsLevel) {
-            terminal `${getServerDisplay(server)}: Needs level ${getRequiredHackingLevel(server)}`;
+            terminal `${getServerDisplay(server)}: Needs level ${fNumber(getRequiredHackingLevel(server))}`;
         }
     }
     if (needsPorts.length > 0) {
@@ -523,7 +533,7 @@ const main = (ns) => {
         output = true;
         terminal `=== Needs ports ===`;
         for (const { server } of needsPorts) {
-            terminal `${getServerDisplay(server)}: Needs ports ${getRequiredPortCount(server)}`;
+            terminal `${getServerDisplay(server)}: Needs ports ${fNumber(getRequiredPortCount(server))}`;
         }
     }
     if (!noSummary) {
@@ -532,21 +542,25 @@ const main = (ns) => {
         }
         output = true;
         terminal `=== Summary ===`;
-        terminal `Hacked: ${hacked.length}`;
-        terminal `Needs level: ${needsLevel.length}`;
-        terminal `Needs ports: ${needsPorts.length}`;
+        if (hacked.length > 0) {
+            terminal `Hacked: ${fNumber(hacked.length)}`;
+        }
+        if (needsLevel.length > 0) {
+            const nextLevel = needsLevel.reduce((min, { server }) => Math.min(min, getRequiredHackingLevel(server)), Number.MAX_SAFE_INTEGER);
+            terminal `Needs level: ${fNumber(needsLevel.length)} (next: ${fNumber(nextLevel)})`;
+        }
+        if (needsPorts.length > 0) {
+            const nextPorts = needsPorts.reduce((min, { server }) => Math.min(min, getRequiredPortCount(server)), 5);
+            terminal `Needs ports: ${fNumber(needsPorts.length)} (next: ${fNumber(nextPorts)})`;
+        }
         if (moneyOnly) {
             const moneyServers = hacked.filter(({ server }) => !isPlayerOwned(server));
             const money = moneyServers.reduce((num, { server }) => num + getAvailableMoney(server), 0);
             const potential = moneyServers.reduce((num, { server }) => num + getMaxMoney(server), 0);
-            terminal `Total available money: ${money.toLocaleString('en-us', {
-                style: 'currency',
-                currency: 'USD',
-            })}`;
-            terminal `Total potential money: ${potential.toLocaleString('en-us', {
-                style: 'currency',
-                currency: 'USD',
-            })}`;
+            const totalRam = flattened.reduce((num, { server }) => num + getServerRam(server).total, 0);
+            terminal `Total available money: ${fMoney(money)}`;
+            terminal `Total potential money: ${fMoney(potential)}`;
+            terminal `Total ram available: ${fRam(totalRam)}`;
         }
     }
 };
