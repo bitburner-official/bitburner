@@ -21,68 +21,81 @@ type Action = {
 };
 
 export const main = async (ns: NS) => {
-  ns.disableLog('getServerMoneyAvailable');
-  ns.disableLog('sleep');
+  ns.disableLog('ALL');
   const log = createLogger(ns);
   const investor = new Investor(ns, 'hacknet', 40);
 
   const nextAction = () => {
     const nodePrice = getNodePurchaseCost(ns);
-    let action: Action = {
-      price: nodePrice,
-      description: 'purchase new hacknet node',
-      exec: ns => {
-        const nodePrice = getNodePurchaseCost(ns);
-        if (purchaseNode(ns) === null) return 0;
-        return nodePrice;
-      },
-    };
-
-    for (let node of getNodes(ns)) {
-      const levelCost = getNodeLevelCost(node);
-      const ramCost = getNodeRamCost(node);
-      const coreCost = getNodeCoreCost(node);
-      if (levelCost !== null && levelCost < action.price) {
-        action = {
-          price: levelCost,
-          description: `upgrade level of node ${node}`,
+    const actionsArr: ReadonlyArray<ReadonlyArray<Action>> = [
+      [
+        {
+          price: nodePrice,
+          description: 'purchase new hacknet node',
           exec: ns => {
-            const levelCost = getNodeLevelCost(node);
-            if (levelCost === null) return 0;
-            if (upgradeNodeLevel(node)) return levelCost;
-            return 0;
+            const nodePrice = getNodePurchaseCost(ns);
+            if (purchaseNode(ns) === null) return 0;
+            return nodePrice;
           },
-        };
-      }
+        },
+      ],
 
-      if (ramCost !== null && ramCost < action.price) {
-        action = {
-          price: ramCost,
-          description: `upgrade ram of node ${node}`,
-          exec: ns => {
-            const ramCost = getNodeRamCost(node);
-            if (ramCost === null) return 0;
-            if (upgradeNodeRam(node)) return ramCost;
-            return 0;
-          },
-        };
-      }
+      ...getNodes(ns).map(
+        (node): ReadonlyArray<Action> => {
+          const actions: Array<Action> = [];
+          const levelCost = getNodeLevelCost(node);
+          const ramCost = getNodeRamCost(node);
+          const coreCost = getNodeCoreCost(node);
 
-      if (coreCost !== null && coreCost < action.price) {
-        action = {
-          price: coreCost,
-          description: `upgrade cores of node ${node}`,
-          exec: ns => {
-            const coreCost = getNodeCoreCost(node);
-            if (coreCost === null) return 0;
-            if (upgradeNodeCores(node)) return coreCost;
-            return 0;
-          },
-        };
-      }
-    }
+          if (levelCost !== null) {
+            actions.push({
+              price: levelCost,
+              description: `upgrade level of node ${node}`,
+              exec: ns => {
+                const levelCost = getNodeLevelCost(node);
+                if (levelCost === null) return 0;
+                if (upgradeNodeLevel(node)) return levelCost;
+                return 0;
+              },
+            });
+          }
 
-    return action;
+          if (ramCost !== null) {
+            actions.push({
+              price: ramCost,
+              description: `upgrade ram of node ${node}`,
+              exec: ns => {
+                const ramCost = getNodeRamCost(node);
+                if (ramCost === null) return 0;
+                if (upgradeNodeRam(node)) return ramCost;
+                return 0;
+              },
+            });
+          }
+
+          if (coreCost !== null) {
+            actions.push({
+              price: coreCost,
+              description: `upgrade cores of node ${node}`,
+              exec: ns => {
+                const coreCost = getNodeCoreCost(node);
+                if (coreCost === null) return 0;
+                if (upgradeNodeCores(node)) return coreCost;
+                return 0;
+              },
+            });
+          }
+
+          return actions;
+        },
+      ),
+    ];
+
+    const actions = ([] as Array<Action>).concat(...actionsArr);
+    return actions.reduce((left, right) => {
+      if (left.price < right.price) return left;
+      return right;
+    });
   };
 
   while (true) {

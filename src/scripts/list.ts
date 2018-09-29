@@ -9,8 +9,10 @@ import {
   getRequiredHackingLevel,
   getRequiredPortCount,
   getSecurityLevel,
+  getServerRam,
   isPlayerOwned,
 } from '../core/server';
+import { fMoney, fNumber, fRam } from '../utils/format';
 import { flattenNetwork, scanNetwork } from '../utils/network';
 
 import { BitBurner as NS } from 'bitburner';
@@ -23,12 +25,9 @@ const getMoneyDisplay = (server: Server) => {
   const maxMoney = getMaxMoney(server);
   const sec = getSecurityLevel(server);
   const minSec = getMinSecurityLevel(server);
-  return `${money.toLocaleString('en-us', {
-    style: 'currency',
-    currency: 'USD',
-  })} (${(money / maxMoney).toLocaleString('en-us', {
-    style: 'percent',
-  })}) ${sec} SEC/${minSec} MIN`;
+  return `${fMoney(money)} (${fMoney(money / maxMoney)}) ${fNumber(
+    sec,
+  )} SEC/${fNumber(minSec)} MIN`;
 };
 
 export const main = (ns: NS) => {
@@ -111,9 +110,9 @@ export const main = (ns: NS) => {
     output = true;
     terminal`=== Needs level ===`;
     for (const { server } of needsLevel) {
-      terminal`${getServerDisplay(
-        server,
-      )}: Needs level ${getRequiredHackingLevel(server)}`;
+      terminal`${getServerDisplay(server)}: Needs level ${fNumber(
+        getRequiredHackingLevel(server),
+      )}`;
     }
   }
 
@@ -125,8 +124,8 @@ export const main = (ns: NS) => {
     output = true;
     terminal`=== Needs ports ===`;
     for (const { server } of needsPorts) {
-      terminal`${getServerDisplay(server)}: Needs ports ${getRequiredPortCount(
-        server,
+      terminal`${getServerDisplay(server)}: Needs ports ${fNumber(
+        getRequiredPortCount(server),
       )}`;
     }
   }
@@ -138,9 +137,30 @@ export const main = (ns: NS) => {
 
     output = true;
     terminal`=== Summary ===`;
-    terminal`Hacked: ${hacked.length}`;
-    terminal`Needs level: ${needsLevel.length}`;
-    terminal`Needs ports: ${needsPorts.length}`;
+    if (hacked.length > 0) {
+      terminal`Hacked: ${fNumber(hacked.length)}`;
+    }
+
+    if (needsLevel.length > 0) {
+      const nextLevel = needsLevel.reduce(
+        (min, { server }) => Math.min(min, getRequiredHackingLevel(server)),
+        Number.MAX_SAFE_INTEGER,
+      );
+      terminal`Needs level: ${fNumber(needsLevel.length)} (next: ${fNumber(
+        nextLevel,
+      )})`;
+    }
+
+    if (needsPorts.length > 0) {
+      const nextPorts = needsPorts.reduce(
+        (min, { server }) => Math.min(min, getRequiredPortCount(server)),
+        5,
+      );
+      terminal`Needs ports: ${fNumber(needsPorts.length)} (next: ${fNumber(
+        nextPorts,
+      )})`;
+    }
+
     if (moneyOnly) {
       const moneyServers = hacked.filter(
         ({ server }) => !isPlayerOwned(server),
@@ -153,15 +173,14 @@ export const main = (ns: NS) => {
         (num, { server }) => num + getMaxMoney(server),
         0,
       );
+      const totalRam = flattened.reduce(
+        (num, { server }) => num + getServerRam(server).total,
+        0,
+      );
 
-      terminal`Total available money: ${money.toLocaleString('en-us', {
-        style: 'currency',
-        currency: 'USD',
-      })}`;
-      terminal`Total potential money: ${potential.toLocaleString('en-us', {
-        style: 'currency',
-        currency: 'USD',
-      })}`;
+      terminal`Total available money: ${fMoney(money)}`;
+      terminal`Total potential money: ${fMoney(potential)}`;
+      terminal`Total ram available: ${fRam(totalRam)}`;
     }
   }
 };
