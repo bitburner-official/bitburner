@@ -196,7 +196,7 @@ const getNodeRamCost = (node) => isNodeMaxRam(node)
     : node[_ns$1].hacknet.getRamUpgradeCost(node[_index], 1);
 const getNodeCoreCost = (node) => isNodeMaxCores(node)
     ? null
-    : node[_ns$1].hacknet.getRamUpgradeCost(node[_index], 1);
+    : node[_ns$1].hacknet.getCoreUpgradeCost(node[_index], 1);
 const upgradeNodeLevel = (node) => node[_ns$1].hacknet.upgradeLevel(node[_index], 1);
 const upgradeNodeRam = (node) => node[_ns$1].hacknet.upgradeRam(node[_index], 1);
 const upgradeNodeCores = (node) => node[_ns$1].hacknet.upgradeCore(node[_index], 1);
