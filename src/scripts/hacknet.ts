@@ -93,7 +93,7 @@ export const main = async (ns: NS) => {
 
     const actions = ([] as Array<Action>).concat(...actionsArr);
     return actions.reduce((left, right) => {
-      if (left.price < right.price) return left;
+      if (left.price <= right.price) return left;
       return right;
     });
   };
