@@ -74,7 +74,7 @@ export const getNodeRamCost = (node: HacknetNode) =>
 export const getNodeCoreCost = (node: HacknetNode) =>
   isNodeMaxCores(node)
     ? null
-    : node[_ns].hacknet.getRamUpgradeCost(node[_index], 1);
+    : node[_ns].hacknet.getCoreUpgradeCost(node[_index], 1);
 export const upgradeNodeLevel = (node: HacknetNode) =>
   node[_ns].hacknet.upgradeLevel(node[_index], 1);
 export const upgradeNodeRam = (node: HacknetNode) =>
