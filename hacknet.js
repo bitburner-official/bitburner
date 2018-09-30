@@ -304,7 +304,7 @@ const main = async (ns) => {
         ];
         const actions = [].concat(...actionsArr);
         return actions.reduce((left, right) => {
-            if (left.price < right.price)
+            if (left.price <= right.price)
                 return left;
             return right;
         });
