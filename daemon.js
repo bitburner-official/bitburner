@@ -160,7 +160,7 @@ const stocks = Object.freeze([
 ]);
 // --- FUNCTIONS ---
 // start the weakening script for levels
-const startWeakenScript = async (ns, server) => {
+export const startWeakenScript = async (ns, server) => {
     const log = createLogger(ns);
     const cost = ns.getScriptRam(weakenScript, getHostname(server));
     const { total, used } = getServerRam(server);
