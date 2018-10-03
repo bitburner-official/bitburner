@@ -6,7 +6,7 @@ var HackStatus;
     HackStatus[HackStatus["NeedsLevel"] = 1] = "NeedsLevel";
     HackStatus[HackStatus["NeedsPorts"] = 2] = "NeedsPorts";
 })(HackStatus || (HackStatus = {}));
-class Server {
+export class Server {
     constructor(ns, hostname) {
         this[_hostname] = hostname;
         this[_ns] = ns;
@@ -56,7 +56,7 @@ const createLogger = (ns, prefix) => (literals, ...placeholders) => ns.print(may
 
 const _update = Symbol('state:update');
 const _reset = Symbol('state:reset');
-const state = (ns, defaultState, owner = ns.getScriptName()) => {
+export const state = (ns, defaultState, owner = ns.getScriptName()) => {
     const name = owner + '.state.json.txt';
     const writeState = (state) => {
         const json = JSON.stringify(state, null, 2);
@@ -148,9 +148,9 @@ const resetInvestments = (ns) => reset(getState(ns));
 // --- CONSTANTS ---
 // server and script to run weaken on ad absurdum
 const weakenScript = 'weaken.js';
-const weakenServer = 'foodnstuff';
+export const weakenServer = 'foodnstuff';
 // Stocks to run algorithm on
-const stocks = Object.freeze([
+export const stocks = Object.freeze([
     'ECP',
     'BLD',
     'OMTK',
